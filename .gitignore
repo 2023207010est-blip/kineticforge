@@ -1,0 +1,18 @@
+# Java
+target/
+*.class
+*.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# LaTeX
+docs/latex/*.aux
+docs/latex/*.log
+docs/latex/*.out
+
+# SO
+.DS_Store
+Thumbs.db

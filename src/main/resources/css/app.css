@@ -1,0 +1,6 @@
+.root { -fx-font-family: "Segoe UI", Arial, sans-serif; }
+.header { -fx-background-color: -color-bg-subtle; -fx-padding: 16 24 12 24; }
+.title { -fx-font-size: 22px; -fx-font-weight: bold; }
+.subtitle { -fx-font-size: 12px; -fx-text-fill: -color-fg-muted; }
+.card { -fx-background-color: -color-bg-subtle; -fx-background-radius: 10; -fx-padding: 16; }
+.status-bar { -fx-background-color: -color-bg-subtle; -fx-padding: 8 24 10 24; }
