@@ -1,6 +1,163 @@
-.root { -fx-font-family: "Segoe UI", Arial, sans-serif; }
-.header { -fx-background-color: -color-bg-subtle; -fx-padding: 16 24 12 24; }
-.title { -fx-font-size: 22px; -fx-font-weight: bold; }
-.subtitle { -fx-font-size: 12px; -fx-text-fill: -color-fg-muted; }
-.card { -fx-background-color: -color-bg-subtle; -fx-background-radius: 10; -fx-padding: 16; }
-.status-bar { -fx-background-color: -color-bg-subtle; -fx-padding: 8 24 10 24; }
+/* ============================================================ */
+/* KineticForge - Estilos base                                   */
+/* ============================================================ */
+
+.root {
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.header {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: transparent transparent -color-border-default transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 16 24 12 24;
+}
+
+.title {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+.status-bar {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-default transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 24 10 24;
+}
+
+/* ============================================================ */
+/* Wizard - Header de cada paso                                  */
+/* ============================================================ */
+
+.step-header {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: transparent transparent -color-border-default transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.step-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.step-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+/* ============================================================ */
+/* Wizard - Drop zone                                            */
+/* ============================================================ */
+
+.drop-zone {
+    -fx-border-color: #CCCCCC;
+    -fx-border-width: 2;
+    -fx-border-style: dashed;
+    -fx-border-radius: 8;
+    -fx-background-color: -color-bg-subtle;
+    -fx-background-radius: 8;
+    -fx-min-height: 400;
+}
+
+.drop-label {
+    -fx-font-size: 16px;
+    -fx-text-fill: -color-fg-muted;
+    -fx-text-alignment: center;
+}
+
+.file-info {
+    -fx-font-size: 12px;
+    -fx-text-fill: -color-fg-muted;
+}
+
+/* ============================================================ */
+/* Botones                                                       */
+/* ============================================================ */
+
+.button-primary {
+    -fx-background-color: #2D7FF9;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+}
+
+.button-primary:hover {
+    -fx-background-color: #1A6FE0;
+}
+
+.button-primary:disabled {
+    -fx-opacity: 0.5;
+}
+
+.button-outlined {
+    -fx-background-color: transparent;
+    -fx-border-color: -color-border-default;
+    -fx-border-radius: 4;
+    -fx-border-width: 1;
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+}
+
+.button-outlined:hover {
+    -fx-background-color: -color-bg-subtle;
+}
+
+.button-outlined:disabled {
+    -fx-opacity: 0.5;
+}
+
+/* ============================================================ */
+/* Wizard - Navegación                                           */
+/* ============================================================ */
+
+.wizard-content {
+    -fx-background-color: -color-bg-default;
+}
+
+.wizard-nav {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-default transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.step-indicator {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}/* Wizard - Paso 2 */
+.preview-pane {
+    -fx-background-color: #1E1E1E;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 10;
+}
+
+.controls-panel {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-default;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.section-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -color-fg-default;
+}
+
+.status-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: -color-fg-muted;
+}
+

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.BorderPane?>
@@ -7,23 +8,16 @@
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="io.kineticforge.ui.controller.MainController"
-            prefWidth="1024.0" prefHeight="720.0">
-    <top>
-        <VBox styleClass="header" spacing="4.0">
-            <Label text="KineticForge" styleClass="title"/>
-            <Label text="Convierte hojas A4 en GIF animados con fondo transparente" styleClass="subtitle"/>
-        </VBox>
-    </top>
-    <center>
-        <VBox alignment="CENTER" spacing="20.0">
-            <padding><Insets top="40.0" right="40.0" bottom="40.0" left="40.0"/></padding>
-            <Label text="Bienvenido a KineticForge"/>
-            <Label text="(Wizard — por implementar)"/>
-        </VBox>
-    </center>
-    <bottom>
-        <VBox styleClass="status-bar">
-            <Label text="Listo."/>
-        </VBox>
-    </bottom>
+            fx:id="rootPane"
+            prefWidth="900.0" prefHeight="700.0">
+
+  <top>
+    <VBox styleClass="header" spacing="4.0">
+      <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
+      <Label text="KineticForge" styleClass="title"/>
+      <Label text="Convierte hojas A4 en GIF animados con fondo transparente"
+             styleClass="subtitle"/>
+    </VBox>
+  </top>
+
 </BorderPane>

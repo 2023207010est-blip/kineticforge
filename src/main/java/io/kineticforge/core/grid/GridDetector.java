@@ -14,18 +14,6 @@ import java.util.Objects;
 /**
  * Detector automático de grilla en imágenes escaneadas.
  *
- * <p>Utiliza proyección de histogramas para encontrar las líneas
- * de la grilla y construir los rectángulos de cada celda.</p>
- *
- * <p>Algoritmo:</p>
- * <ol>
- *     <li>Preprocesamiento: escala de grises + binarización</li>
- *     <li>Proyección vertical: encontrar líneas verticales</li>
- *     <li>Proyección horizontal: encontrar líneas horizontales</li>
- *     <li>Construcción de la matriz de celdas</li>
- *     <li>Validación contra el {@link GridSpec}</li>
- * </ol>
- *
  * @author KineticForge Team
  * @version 1.0.0
  * @since 2026
@@ -34,13 +22,9 @@ public class GridDetector {
 
     private static final Logger log = LoggerFactory.getLogger(GridDetector.class);
 
-    /** Umbral por defecto para binarización fija (0-255). */
-    private static final int DEFAULT_BINARY_THRESHOLD = 128;
-
-    /** Porcentaje mínimo de píxeles oscuros en una fila/columna para considerarla línea. */
+    private static final int DEFAULT_BINARY_THRESHOLD = 230;
     private static final double LINE_DETECTION_RATIO = 0.3;
 
-    /** Estrategia de binarización. */
     private final BinarizationStrategy strategy;
 
     public GridDetector() {
@@ -51,14 +35,6 @@ public class GridDetector {
         this.strategy = Objects.requireNonNull(strategy, "strategy no puede ser nulo");
     }
 
-    /**
-     * Detecta la grilla en la imagen dada.
-     *
-     * @param image imagen escaneada
-     * @param spec  especificación esperada de la grilla
-     * @return resultado con los rectángulos de las celdas
-     * @throws GridDetectionException si falla la detección
-     */
     public GridDetectionResult detect(BufferedImage image, GridSpec spec) {
         Objects.requireNonNull(image, "image no puede ser nulo");
         Objects.requireNonNull(spec, "spec no puede ser nulo");
@@ -119,6 +95,7 @@ public class GridDetector {
         log.debug("Umbral de binarización: {} (estrategia: {})", threshold, strategy);
         return threshold;
     }
+
     private int computeLuminance(int rgb) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
@@ -242,7 +219,7 @@ public class GridDetector {
     }
 
     // ============================================================
-    // Paso 4: Construcción de celdas
+    // Paso 4: Construcción de celdas (con filtro)
     // ============================================================
 
     private List<Rectangle> buildCells(List<Integer> verticalLines,
@@ -262,8 +239,13 @@ public class GridDetector {
                 expectedRows + 1, horizontalLines.size()));
         }
 
-        List<Integer> vLines = verticalLines.subList(0, expectedCols + 1);
-        List<Integer> hLines = horizontalLines.subList(0, expectedRows + 1);
+        // FILTRO: quedarse con las líneas que mejor se ajusten al
+        // espaciado uniforme esperado (descarta puntos guía)
+        List<Integer> vLines = selectEvenlySpaced(verticalLines, expectedCols + 1);
+        List<Integer> hLines = selectEvenlySpaced(horizontalLines, expectedRows + 1);
+
+        log.debug("Verticales filtradas: {} → {}", verticalLines.size(), vLines.size());
+        log.debug("Horizontales filtradas: {} → {}", horizontalLines.size(), hLines.size());
 
         List<Rectangle> cells = new ArrayList<>(expectedRows * expectedCols);
 
@@ -288,6 +270,64 @@ public class GridDetector {
         }
 
         return cells;
+    }
+
+    /**
+     * De una lista de candidatos, selecciona el subconjunto de tamaño N
+     * cuyas posiciones mejor se ajusten a un espaciado uniforme.
+     * Descarta líneas "extra" (puntos guía) que estén demasiado cerca de otras.
+     *
+     * @param candidates candidatos ordenados por posición
+     * @param n          cantidad deseada (filas + 1 o columnas + 1)
+     * @return sublista con N elementos espaciados uniformemente
+     */
+    private List<Integer> selectEvenlySpaced(List<Integer> candidates, int n) {
+        if (candidates.size() <= n) {
+            return new ArrayList<>(candidates);
+        }
+
+        // Estrategia: para cada posición "ideal" (espaciado uniforme entre
+        // el primero y el último candidato), elegir el candidato más cercano.
+        // Evita repetir candidatos usando un conjunto de índices ya elegidos.
+
+        List<Integer> selected = new ArrayList<>(n);
+        boolean[] used = new boolean[candidates.size()];
+
+        int first = candidates.get(0);
+        int last = candidates.get(candidates.size() - 1);
+        double step = (last - first) / (double) (n - 1);
+
+        for (int i = 0; i < n; i++) {
+            int target = (int) Math.round(first + step * i);
+
+            // Buscar el candidato más cercano al target (no usado)
+            int bestIdx = -1;
+            int bestDist = Integer.MAX_VALUE;
+
+            for (int j = 0; j < candidates.size(); j++) {
+                if (used[j]) continue;
+                int dist = Math.abs(candidates.get(j) - target);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestIdx = j;
+                }
+            }
+
+            if (bestIdx == -1) {
+                bestIdx = candidates.size() - 1;
+            }
+
+            used[bestIdx] = true;
+            selected.add(candidates.get(bestIdx));
+        }
+
+        // Ordenar de nuevo (por si el algoritmo los eligió desordenados)
+        selected.sort(Integer::compareTo);
+
+        log.debug("selectEvenlySpaced: {} candidatos → {} seleccionados",
+            candidates.size(), selected.size());
+
+        return selected;
     }
 
     // ============================================================

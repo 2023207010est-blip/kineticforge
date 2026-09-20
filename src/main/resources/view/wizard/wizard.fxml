@@ -1,7 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
 <BorderPane xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="io.kineticforge.ui.controller.wizard.WizardController">
-    <!-- TODO: implementar -->
+            fx:controller="io.kineticforge.ui.controller.wizard.WizardController"
+            prefWidth="900.0" prefHeight="700.0">
+
+  <center>
+    <StackPane fx:id="contentArea" styleClass="wizard-content">
+      <!-- Los pasos se cargan dinámicamente -->
+    </StackPane>
+  </center>
+
+  <bottom>
+    <VBox styleClass="wizard-nav">
+      <padding><Insets top="12" right="24" bottom="16" left="24"/></padding>
+      <HBox spacing="15" alignment="CENTER_LEFT">
+        <Label fx:id="stepIndicator" text="Paso 1" styleClass="step-indicator"/>
+        <HBox HBox.hgrow="ALWAYS"/>
+        <Button fx:id="backButton" text="← Atrás"
+                onAction="#onBack" styleClass="button-outlined"/>
+        <Button fx:id="nextButton" text="Siguiente →"
+                onAction="#onNext" styleClass="button-primary"/>
+      </HBox>
+    </VBox>
+  </bottom>
+
 </BorderPane>

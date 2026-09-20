@@ -1,5 +1,9 @@
 package io.kineticforge.ui.controller.wizard;
 
+import io.kineticforge.ui.model.WizardState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Controlador del paso 4: exportación.
  *
@@ -9,5 +13,14 @@ package io.kineticforge.ui.controller.wizard;
  */
 public class Step4ExportController {
 
-    // TODO: implementar
+    private static final Logger log = LoggerFactory.getLogger(Step4ExportController.class);
+
+    private WizardState state;
+    private Runnable onComplete;
+
+    public void init(WizardState state, Runnable onComplete) {
+        this.state = state;
+        this.onComplete = onComplete;
+        log.info("Paso 4 inicializado (pendiente de implementar)");
+    }
 }
