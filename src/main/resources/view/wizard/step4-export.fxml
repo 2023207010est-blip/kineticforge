@@ -1,7 +1,76 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
-<VBox xmlns="http://javafx.com/javafx/17"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="io.kineticforge.ui.controller.wizard.Step4ExportController">
-    <!-- TODO: implementar -->
-</VBox>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.kineticforge.ui.controller.wizard.Step4ExportController">
+
+  <top>
+    <VBox spacing="8" styleClass="step-header">
+      <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
+      <Label text="Paso 4: Exportar" styleClass="step-title"/>
+      <Label text="Configurá el formato y exportá tu animación"
+             styleClass="step-subtitle"/>
+    </VBox>
+  </top>
+
+  <center>
+    <HBox spacing="15" alignment="TOP_LEFT" maxHeight="Infinity">
+      <padding><Insets top="15" right="24" bottom="15" left="24"/></padding>
+
+      <!-- Preview animado -->
+      <StackPane fx:id="previewContainer" HBox.hgrow="ALWAYS"
+                 minWidth="400" minHeight="300"
+                 styleClass="preview-pane">
+        <ImageView fx:id="animatedPreview"
+                   preserveRatio="true"
+                   smooth="true"/>
+      </StackPane>
+
+      <!-- Panel de configuración -->
+      <VBox spacing="15" styleClass="controls-panel" prefWidth="300">
+        <padding><Insets top="15" right="15" bottom="15" left="15"/></padding>
+
+        <Label text="Configuración" styleClass="section-title"/>
+
+        <VBox spacing="4">
+          <Label text="Formato de exportación"/>
+          <ComboBox fx:id="formatCombo" maxWidth="Infinity"/>
+        </VBox>
+
+        <VBox spacing="4">
+          <Label fx:id="fpsLabel" text="FPS: 12"/>
+          <Slider fx:id="fpsSlider" min="1" max="30" value="12"
+                  blockIncrement="1" showTickLabels="true"
+                  showTickMarks="true" majorTickUnit="5"
+                  minorTickCount="4"/>
+        </VBox>
+
+        <CheckBox fx:id="loopCheck" text="Reproducir en loop"
+                  selected="true"/>
+
+        <Label text="Resumen:" styleClass="section-title"/>
+        <Label fx:id="summaryLabel" text="" wrapText="true"
+               styleClass="file-info"/>
+
+        <Button fx:id="exportButton" text="💾 Exportar…"
+                maxWidth="Infinity" styleClass="button-primary"/>
+
+        <Label fx:id="statusLabel" text="" wrapText="true"
+               styleClass="status-label"/>
+      </VBox>
+    </HBox>
+  </center>
+
+</BorderPane>

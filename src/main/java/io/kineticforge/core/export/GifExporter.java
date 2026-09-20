@@ -149,10 +149,9 @@ public class GifExporter implements Exporter {
         int width = frame.getWidth();
         int height = frame.getHeight();
 
-        BufferedImage rgbFrame = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-
-        // Píxel usado como "transparente" (verde puro, poco probable en dibujos)
-        int transparentRgb = 0x00FF00;
+        // Usamos TYPE_INT_ARGB: el writer de GIF va a mapear alpha<128
+        // a transparente automáticamente
+        BufferedImage gifFrame = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
@@ -160,14 +159,16 @@ public class GifExporter implements Exporter {
                 int alpha = (argb >> 24) & 0xFF;
 
                 if (alpha < ALPHA_THRESHOLD) {
-                    rgbFrame.setRGB(x, y, transparentRgb);
+                    // Transparente
+                    gifFrame.setRGB(x, y, 0x00000000);
                 } else {
-                    rgbFrame.setRGB(x, y, argb & 0x00FFFFFF);
+                    // Opaco (sin alpha)
+                    gifFrame.setRGB(x, y, 0xFF000000 | (argb & 0x00FFFFFF));
                 }
             }
         }
 
-        return rgbFrame;
+        return gifFrame;
     }
 
     // ============================================================
