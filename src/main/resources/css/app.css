@@ -160,4 +160,33 @@
     -fx-font-size: 12px;
     -fx-text-fill: -color-fg-muted;
 }
+/* Wizard - Paso 3: procesamiento */
+.preview-scroll {
+    -fx-background-color: white;
+    -fx-background: white;
+}
 
+.preview-scroll > .viewport {
+    -fx-background-color: white;
+}
+
+.thumbnail-cell {
+    -fx-background-color: #F5F5F5;
+    -fx-border-color: #DDDDDD;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 4;
+}
+
+.thumbnail-label {
+    -fx-font-size: 10px;
+    -fx-text-fill: #666666;
+    -fx-font-weight: bold;
+}
+
+.process-controls {
+    -fx-background-color: -color-bg-subtle;
+    -fx-border-color: -color-border-default transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
