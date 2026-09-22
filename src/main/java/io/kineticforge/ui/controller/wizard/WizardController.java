@@ -13,9 +13,9 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import io.kineticforge.ui.util.ThemeManager;
 import java.io.IOException;
-
+import io.kineticforge.ui.util.TemplatesDialog;
 /**
  * Controlador principal del wizard.
  *
@@ -35,6 +35,12 @@ public class WizardController {
     @FXML private Label stepIndicator;
     @FXML private Button backButton;
     @FXML private Button nextButton;
+    @FXML private Button themeButton;
+    @FXML private Button templatesButton;
+    @FXML
+    private void onOpenTemplates() {
+        TemplatesDialog.show();
+    }
 
     private final WizardState state = new WizardState();
     private WizardStep currentStep = WizardStep.LOAD_IMAGE;
@@ -42,6 +48,7 @@ public class WizardController {
     @FXML
     public void initialize() {
         log.info("Wizard inicializado");
+        updateThemeButton(ThemeManager.isDarkMode());
         showStep(WizardStep.LOAD_IMAGE);
     }
 
@@ -114,6 +121,21 @@ public class WizardController {
 
     private void goNext() {
         onNext();
+    }
+
+    @FXML
+    private void onToggleTheme() {
+        boolean darkNow = ThemeManager.toggle();
+        updateThemeButton(darkNow);
+        log.info("Tema cambiado a: {}", darkNow ? "oscuro" : "claro");
+    }
+
+    private void updateThemeButton(boolean isDark) {
+        if (isDark) {
+            themeButton.setText("☀ Claro");
+        } else {
+            themeButton.setText("☾ Oscuro");
+        }
     }
 
     public WizardState getState() {

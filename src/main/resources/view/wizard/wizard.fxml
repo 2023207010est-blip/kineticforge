@@ -13,6 +13,23 @@
             fx:controller="io.kineticforge.ui.controller.wizard.WizardController"
             prefWidth="900.0" prefHeight="700.0">
 
+  <top>
+    <HBox styleClass="header" spacing="10.0" alignment="CENTER_LEFT">
+      <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
+      <VBox spacing="4.0" HBox.hgrow="ALWAYS">
+        <Label text="KineticForge" styleClass="title"/>
+        <Label text="Convierte hojas A4 en GIF animados con fondo transparente"
+               styleClass="subtitle"/>
+      </VBox>
+      <Button fx:id="templatesButton" text="📄 Plantillas"
+              onAction="#onOpenTemplates"
+              styleClass="button-outlined"/>
+      <Button fx:id="themeButton" text="☾ Oscuro"
+              onAction="#onToggleTheme"
+              styleClass="button-outlined"/>
+    </HBox>
+  </top>
+
   <center>
     <StackPane fx:id="contentArea" styleClass="wizard-content">
       <!-- Los pasos se cargan dinámicamente -->

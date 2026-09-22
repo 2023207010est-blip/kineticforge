@@ -74,7 +74,7 @@
           </VBox>
 
           <CheckBox fx:id="guideDotCheck" text="Incluir punto guía"
-                    selected="true"/>
+                    selected="false"/>
 
           <Button fx:id="detectButton" text="🔍 Detectar automáticamente"
                   maxWidth="Infinity" styleClass="button-primary"/>

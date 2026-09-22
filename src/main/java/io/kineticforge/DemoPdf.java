@@ -23,7 +23,7 @@ public class DemoPdf {
             .pageSize(PageSize.A4)
             .marginMm(15.0)          // ← margen exterior de 15 mm
             .gutterMm(2.0)            // ← separación entre celdas
-            .includeGuideDot(true)
+            .includeGuideDot(false)
             .build();
 
         TemplateGeneratorService service = new TemplateGeneratorService();

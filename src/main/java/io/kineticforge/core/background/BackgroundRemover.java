@@ -28,7 +28,7 @@ public class BackgroundRemover {
     private static final Logger log = LoggerFactory.getLogger(BackgroundRemover.class);
 
     /** Umbral de luminancia para considerar un píxel como "blanco papel". */
-    private static final int WHITE_THRESHOLD = 252;
+    private static final int WHITE_THRESHOLD = 248;
 
     /** Estrategia de flood fill. */
     private final FloodFillStrategy strategy;

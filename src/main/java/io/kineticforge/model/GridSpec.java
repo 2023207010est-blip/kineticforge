@@ -196,7 +196,7 @@ public record GridSpec(
         private PageSize pageSize = PageSize.A4;
         private double marginMm = 5.0;
         private double gutterMm = 2.0;
-        private boolean includeGuideDot = true;
+        private boolean includeGuideDot = false;
         private GuideDotStyle guideDotStyle = GuideDotStyle.CIRCLE;
         private GuideDotColor guideDotColor = GuideDotColor.LIGHT_GRAY;
         private double guideDotDiameterMm = 1.5;

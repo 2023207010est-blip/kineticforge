@@ -55,7 +55,7 @@
       <version>${pdfbox.version}</version>
     </dependency>
 
-    <!-- Formatos de imagen extendidos -->
+    <!-- Formatos de imagen extendidos (TIFF, BMP) -->
     <dependency>
       <groupId>com.twelvemonkeys.imageio</groupId>
       <artifactId>imageio-tiff</artifactId>
@@ -67,11 +67,18 @@
       <version>${twelvemonkeys.version}</version>
     </dependency>
 
-    <!-- WebP -->
+    <!-- WebP estático -->
     <dependency>
       <groupId>org.sejda.imageio</groupId>
       <artifactId>webp-imageio</artifactId>
       <version>${webp.version}</version>
+    </dependency>
+
+    <!-- GIF encoder de alta calidad con cuantización NeuQuant -->
+    <dependency>
+      <groupId>com.madgag</groupId>
+      <artifactId>animated-gif-lib</artifactId>
+      <version>1.4</version>
     </dependency>
 
     <!-- Logging -->

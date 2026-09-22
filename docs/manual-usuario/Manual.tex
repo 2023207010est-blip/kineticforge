@@ -1,0 +1,413 @@
+\documentclass[12pt,a4paper]{article}
+
+% ============================================================
+% Paquetes
+% ============================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% ============================================================
+% Configuración
+% ============================================================
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    pdftitle={Manual de Usuario - KineticForge v1.0},
+    pdfauthor={Equipo KineticForge}
+}
+
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{gray!10},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{codegray}
+}
+\lstset{style=mystyle}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{KineticForge v1.0}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ============================================================
+% Documento
+% ============================================================
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{3cm}
+
+    {\Huge\bfseries KineticForge\par}
+    \vspace{0.5cm}
+    {\Large Manual de Usuario\par}
+    \vspace{0.3cm}
+    {\large Versión 1.0.0\par}
+
+    \vspace{3cm}
+
+    {\large Convierte hojas A4 con dibujos a mano\\en GIF animados con fondo transparente\par}
+
+    \vfill
+
+    {\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introducción}
+% ============================================================
+
+\textbf{KineticForge} es una aplicación de escritorio que automatiza la conversión de
+hojas A4 con dibujos a mano (organizados en una grilla) en \textbf{GIF animados con
+fondo transparente}.
+
+\subsection{¿Para quién es?}
+
+\begin{itemize}[leftmargin=*]
+    \item Dibujantes tradicionales que quieren digitalizar sus animaciones
+    \item Estudiantes de animación que necesitan GIFs para portafolio
+    \item Docentes que enseñan animación tradicional
+    \item Cualquier persona con un escáner y ganas de animar
+\end{itemize}
+
+\subsection{¿Qué resuelve?}
+
+Los flujos tradicionales requieren:
+\begin{itemize}[leftmargin=*]
+    \item Photoshop (suscripción mensual)
+    \item Recortar 48 frames a mano (30-60 min)
+    \item Alinear los frames para evitar vibración
+    \item Exportar con transparencia
+\end{itemize}
+
+\textbf{KineticForge hace todo eso en menos de 2 minutos.}
+
+% ============================================================
+\section{Requisitos}
+% ============================================================
+
+\subsection{Hardware}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Sistema operativo:} Windows 10+, Linux (Ubuntu 20.04+), macOS 11+
+    \item \textbf{RAM:} 4 GB mínimo, 8 GB recomendado
+    \item \textbf{Disco:} 500 MB libres
+    \item \textbf{Escáner} (o cámara de celular) para digitalizar la plantilla
+\end{itemize}
+
+\subsection{Software}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Java 21} (para ejecutar desde JAR)
+    \item \textbf{O instalador nativo} (que incluye Java — recomendado)
+\end{itemize}
+
+% ============================================================
+\section{Instalación}
+% ============================================================
+
+\subsection{Opción A: Instalador nativo (recomendado)}
+
+\textbf{Linux (.deb):}
+\begin{lstlisting}[language=bash]
+sudo dpkg -i kineticforge-1.0.0.deb
+\end{lstlisting}
+
+\textbf{Windows (.exe):}
+\begin{itemize}[leftmargin=*]
+    \item Doble clic en \texttt{kineticforge-1.0.0.exe}
+    \item Seguir el asistente
+\end{itemize}
+
+\textbf{macOS (.dmg):}
+\begin{itemize}[leftmargin=*]
+    \item Doble clic en \texttt{kineticforge-1.0.0.dmg}
+    \item Arrastrar a la carpeta Aplicaciones
+\end{itemize}
+
+\subsection{Opción B: Ejecutar desde JAR}
+
+Requiere Java 21 instalado.
+
+\begin{lstlisting}[language=bash]
+java -jar kineticforge-1.0.0.jar
+\end{lstlisting}
+
+% ============================================================
+\section{Primeros pasos}
+% ============================================================
+
+\subsection{Generar la plantilla}
+
+KineticForge incluye un generador de plantillas. \textbf{Antes de dibujar, necesitás
+la plantilla correcta.}
+
+\textbf{Desde la línea de comandos:}
+\begin{lstlisting}[language=bash]
+java -jar kineticforge-1.0.0.jar --generate-template --preset compacta
+\end{lstlisting}
+
+\textbf{O desde la app:}
+\begin{enumerate}[leftmargin=*]
+    \item Abrir KineticForge
+    \item Ir a la sección ``Plantillas''
+    \item Elegir preset y click en ``Generar''
+    \item Se guarda en \texttt{\textasciitilde/kineticforge/plantillas/}
+\end{enumerate}
+
+\subsection{Imprimir la plantilla}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Papel:} A4 (210 × 297 mm)
+    \item \textbf{Calidad:} alta (300 DPI mínimo)
+    \item \textbf{Márgenes:} los que tiene la plantilla (no ajustar)
+    \item \textbf{No usar ``ajustar a página''} — imprimir a tamaño real
+\end{itemize}
+
+\subsection{Dibujar}
+\begin{itemize}[leftmargin=*]
+    \item Dibujar \textbf{un cuadro por celda} (el orden es de izquierda a derecha, arriba a abajo)
+    \item \textbf{El contorno del personaje debe estar cerrado} (importante para la detección automática)
+    \item Dibujar en \textbf{tinta negra} o \textbf{lápiz oscuro}
+\end{itemize}
+
+\subsection{Escanear}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Resolución:} 300 DPI mínimo
+    \item \textbf{Formato:} PNG (sin pérdida) o JPG (calidad alta)
+    \item \textbf{No recortar} (dejar la hoja completa)
+\end{itemize}
+
+% ============================================================
+\section{Guía del wizard}
+% ============================================================
+
+KineticForge usa un wizard de 4 pasos.
+
+\subsection{Paso 1: Cargar imagen}
+\begin{itemize}[leftmargin=*]
+    \item Arrastrar la imagen escaneada al área de carga
+    \item O click en ``Elegir archivo...''
+    \item Formatos aceptados: PNG, JPG, TIFF, BMP
+\end{itemize}
+
+\textbf{Validación:} la app muestra el nombre del archivo y sus dimensiones.
+
+\subsection{Paso 2: Detectar grilla}
+\begin{itemize}[leftmargin=*]
+    \item Elegir preset (Compacta, Densa, etc.)
+    \item Elegir orientación (Vertical / Horizontal)
+    \item Ajustar margen si es necesario
+    \item Click en ``Detectar automáticamente''
+\end{itemize}
+
+\textbf{Resultado:} la app muestra las celdas detectadas con líneas azules.
+
+\textbf{Si la detección falla:} ajustar preset, orientación o margen manualmente.
+
+\subsection{Paso 3: Procesar frames}
+\begin{itemize}[leftmargin=*]
+    \item Click en ``Procesar frames''
+    \item La app:
+    \begin{enumerate}[leftmargin=*]
+        \item Extrae cada celda como un frame
+        \item Quita el fondo blanco
+        \item Alinea los frames para evitar vibración
+    \end{enumerate}
+\end{itemize}
+
+\textbf{Duración:} \textasciitilde 10-30 segundos según la resolución.
+
+\textbf{Resultado:} preview con las 48 miniaturas.
+
+\subsection{Paso 4: Exportar}
+\begin{itemize}[leftmargin=*]
+    \item Elegir formato (GIF, PNG spritesheet, WebP)
+    \item Ajustar FPS (1-30)
+    \item Elegir si reproducir en loop
+    \item Click en ``Exportar...''
+\end{itemize}
+
+\textbf{Resultado:} el archivo se guarda en \texttt{\textasciitilde/kineticforge/exportaciones/}.
+
+% ============================================================
+\section{Formatos de la plantilla}
+% ============================================================
+
+KineticForge ofrece 6 presets:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Preset} & \textbf{Grid} & \textbf{Total} & \textbf{Uso} \\
+\midrule
+Detalle       & 4×3   & 12  & Bocetos grandes \\
+Estándar      & 6×4   & 24  & 1 s a 24 fps \\
+Compacta      & 8×6   & 48  & 2 s a 24 fps \\
+Densa         & 12×8  & 96  & 4 s a 24 fps \\
+Cinemática    & 16×6  & 96  & Widescreen \\
+Súper densa   & 24×12 & 288 & 12 s a 24 fps \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{Exportación}
+% ============================================================
+
+\subsection{Formatos disponibles}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Formato} & \textbf{Transparencia} & \textbf{Colores} & \textbf{Uso} \\
+\midrule
+GIF              & Sí (1 bit)   & 256   & Universal \\
+PNG spritesheet  & Sí (8 bits)  & 16M   & Motores de juego \\
+WebP             & Sí (8 bits)  & 16M   & Web moderna \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Parámetros}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FPS:} 1 a 30 fotogramas por segundo
+    \item \textbf{Loop:} reproducir infinitamente o una sola vez
+\end{itemize}
+
+% ============================================================
+\section{Preguntas frecuentes (FAQ)}
+% ============================================================
+
+\subsection{¿Puedo usar una foto de celular en vez de escáner?}
+
+Sí. Asegurate de:
+\begin{itemize}[leftmargin=*]
+    \item Buena iluminación (sin sombras)
+    \item Hoja plana (sin dobleces)
+    \item Resolución alta ($>$2000 px de ancho)
+\end{itemize}
+
+\subsection{¿Qué pasa si el personaje toca el borde de la celda?}
+
+El \texttt{BackgroundRemover} puede recortar el contorno. \textbf{Dejá al menos 2 mm de margen}
+entre el personaje y el borde de la celda.
+
+\subsection{¿Por qué el GIF se ve con ``banding''?}
+
+Es limitación del formato GIF (256 colores). Para mejor calidad, exportá a WebP
+o PNG spritesheet.
+
+\subsection{¿Puedo animar más de 48 frames?}
+
+Sí, elegí un preset con más celdas (Densa, Súper densa). También podés combinar
+varias hojas (feature pendiente para v1.1).
+
+% ============================================================
+\section{Solución de problemas}
+% ============================================================
+
+\subsection{La detección de grilla falla}
+
+\textbf{Síntomas:} las celdas no se alinean con la plantilla.
+
+\textbf{Soluciones:}
+\begin{enumerate}[leftmargin=*]
+    \item Verificar que la imagen sea de la plantilla (no una hoja en blanco)
+    \item Verificar orientación (Vertical vs Horizontal)
+    \item Ajustar el preset (Compacta, Densa, etc.)
+    \item Ajustar el margen (slider)
+\end{enumerate}
+
+\subsection{Los frames salen vacíos}
+
+\textbf{Síntomas:} las miniaturas están todas blancas.
+
+\textbf{Causa:} el \texttt{BackgroundRemover} borra demasiado.
+
+\textbf{Solución:} verificar que la plantilla no tenga fondo gris.
+
+\subsection{El GIF pesa mucho}
+
+\textbf{Solución:} reducir FPS, usar menos colores, o exportar a WebP (más eficiente).
+
+\subsection{Error ``Java no encontrado''}
+
+\textbf{Solución:} instalar Java 21 desde \url{https://adoptium.net}.
+
+% ============================================================
+\section{Detalles técnicos}
+% ============================================================
+
+\subsection{Arquitectura}
+
+KineticForge usa \textbf{arquitectura por capas:}
+
+\begin{verbatim}
+UI (JavaFX)
+   |
+Controller / ViewModel
+   |
+Core (logica pura)
+   |
+IO (carga, exporta, persiste)
+\end{verbatim}
+
+\subsection{Pipeline de procesamiento}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Detección de grilla:} proyección de histogramas + filtro de líneas espaciadas uniformemente
+    \item \textbf{Extracción de frames:} recorte de cada celda
+    \item \textbf{Eliminación de fondo:} flood fill desde los 4 bordes con antialiasing
+    \item \textbf{Alineación:} bounding box en canvas común
+    \item \textbf{Exportación:} GIF (javax.imageio), PNG spritesheet, WebP
+\end{enumerate}
+
+\subsection{Tecnologías}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Java 21} (LTS)
+    \item \textbf{JavaFX 21} (UI)
+    \item \textbf{Apache PDFBox 3} (plantillas PDF)
+    \item \textbf{TwelveMonkeys ImageIO} (TIFF, BMP)
+    \item \textbf{AtlantaFX} (temas visuales)
+    \item \textbf{JUnit 5} (testing — 157 tests)
+    \item \textbf{Maven} (build)
+\end{itemize}
+
+\subsection{Licencia}
+
+Apache License 2.0.
+
+% ============================================================
+\section{Contacto}
+% ============================================================
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Repo:} \url{https://github.com/2023207010est-blip/kineticforge}
+    \item \textbf{Issues:} \url{https://github.com/2023207010est-blip/kineticforge/issues}
+\end{itemize}
+
+\end{document}

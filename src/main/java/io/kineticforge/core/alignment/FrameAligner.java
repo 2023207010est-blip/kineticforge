@@ -67,7 +67,7 @@ public class FrameAligner {
         }
 
         // Añadimos un pequeño padding alrededor para no cortar los bordes
-        int padding = 4;
+        int padding = 20;
         int canvasWidth = maxContentWidth + padding * 2;
         int canvasHeight = maxContentHeight + padding * 2;
 
