@@ -1,7 +1,7 @@
 package io.kineticforge.ui.controller.wizard;
 
-import io.kineticforge.core.export.ApngExporter;
 import io.kineticforge.core.export.Exporter;
+import io.kineticforge.core.export.FFmpegExporter;
 import io.kineticforge.core.export.GifExporter;
 import io.kineticforge.core.export.SpritesheetExporter;
 import io.kineticforge.core.export.WebPExporter;
@@ -11,6 +11,7 @@ import io.kineticforge.ui.util.Dialogs;
 import io.kineticforge.ui.util.ImageConverter;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -19,7 +20,9 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
 import javafx.stage.FileChooser;
+import javafx.stage.Window;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,14 +37,17 @@ import java.util.List;
  * Controlador del paso 4: exportación.
  *
  * @author KineticForge Team
- * @version 1.0.0
+ * @version 1.1.0
  * @since 2026
  */
 public class Step4ExportController {
 
     private static final Logger log = LoggerFactory.getLogger(Step4ExportController.class);
 
-    @FXML private javafx.scene.layout.StackPane previewContainer;
+    /** Referencia estática para detener la animación al salir del paso. */
+    private static Step4ExportController currentInstance;
+
+    @FXML private StackPane previewContainer;
     @FXML private ImageView animatedPreview;
     @FXML private ComboBox<String> formatCombo;
     @FXML private Slider fpsSlider;
@@ -61,6 +67,9 @@ public class Step4ExportController {
         this.state = state;
         this.onComplete = onComplete;
 
+        // Registrar instancia actual
+        currentInstance = this;
+
         setupControls();
         preparePreview();
         startAnimation();
@@ -68,28 +77,35 @@ public class Step4ExportController {
         log.info("Paso 4 inicializado");
     }
 
+    /**
+     * Detiene la animación de la instancia actual.
+     * Llamado por WizardController al cambiar de paso.
+     */
+    public static void stopInstance() {
+        if (currentInstance != null) {
+            currentInstance.stop();
+        }
+    }
+
     private void setupControls() {
-        // Formatos disponibles
         formatCombo.getItems().setAll(
             "GIF animado",
             "PNG spritesheet",
-            "WebP (primer frame)"
+            "WebP (primer frame)",
+            "MP4 (H.264)",
+            "WebM (VP9)",
+            "GIF (FFmpeg)"
         );
         formatCombo.getSelectionModel().selectFirst();
 
-        // Slider de FPS
         fpsSlider.valueProperty().addListener((obs, old, val) -> {
             int fps = val.intValue();
             fpsLabel.setText("FPS: " + fps);
             restartAnimation(fps);
         });
 
-        // Checkbox de loop
-        loopCheck.selectedProperty().addListener((obs, old, val) -> {
-            updateSummary();
-        });
+        loopCheck.selectedProperty().addListener((obs, old, val) -> updateSummary());
 
-        // Botón exportar
         exportButton.setOnAction(e -> export());
 
         updateSummary();
@@ -103,7 +119,6 @@ public class Step4ExportController {
             return;
         }
 
-        // Convertir a imágenes JavaFX para el preview
         previewImages = new ArrayList<>(frames.size());
         for (BufferedImage frame : frames) {
             previewImages.add(ImageConverter.toFxImage(frame));
@@ -172,7 +187,6 @@ public class Step4ExportController {
             return;
         }
 
-        // Elegir archivo destino
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Guardar animación como…");
         chooser.setInitialFileName("animacion." + exporter.getFileExtension());
@@ -181,7 +195,6 @@ public class Step4ExportController {
                 exporter.getFormatName(),
                 "*." + exporter.getFileExtension()));
 
-        // Directorio inicial: ~/kineticforge/exportaciones/
         Path defaultDir = Path.of(System.getProperty("user.home"),
             "kineticforge", "exportaciones");
         if (defaultDir.toFile().exists()) {
@@ -191,34 +204,35 @@ public class Step4ExportController {
         File target = chooser.showSaveDialog(exportButton.getScene().getWindow());
         if (target == null) return;
 
-        // Config
         ExportConfig config = ExportConfig.defaults()
             .withFps((int) fpsSlider.getValue())
             .withLoop(loopCheck.isSelected());
 
-        // Exportar en background
         exportButton.setDisable(true);
         statusLabel.setText("Exportando…");
 
         Path output = target.toPath();
+        Window ownerWindow = exportButton.getScene().getWindow();
 
         new Thread(() -> {
             try {
                 exporter.export(frames, config, output);
 
-                javafx.application.Platform.runLater(() -> {
+                Platform.runLater(() -> {
                     statusLabel.setText("✅ Exportado: " + output.getFileName());
                     exportButton.setDisable(false);
-                    Dialogs.info("Exportación completa",
+                    // FIX: pasar owner para que el diálogo no se vaya al fondo
+                    Dialogs.info(ownerWindow,
+                        "Exportación completa",
                         "Archivo guardado en:\n" + output);
                 });
 
             } catch (Exception ex) {
                 log.error("Error exportando", ex);
-                javafx.application.Platform.runLater(() -> {
+                Platform.runLater(() -> {
                     statusLabel.setText("❌ Error: " + ex.getMessage());
                     exportButton.setDisable(false);
-                    Dialogs.error("Error al exportar", ex.getMessage());
+                    Dialogs.error(ownerWindow, "Error al exportar", ex.getMessage());
                 });
             }
         }, "exporter-thread").start();
@@ -230,16 +244,22 @@ public class Step4ExportController {
             case "GIF animado" -> new GifExporter();
             case "PNG spritesheet" -> new SpritesheetExporter();
             case "WebP (primer frame)" -> new WebPExporter();
+            case "MP4 (H.264)" -> new FFmpegExporter(FFmpegExporter.Format.MP4);
+            case "WebM (VP9)" -> new FFmpegExporter(FFmpegExporter.Format.WEBM);
+            case "GIF (FFmpeg)" -> new FFmpegExporter(FFmpegExporter.Format.GIF);
             default -> null;
         };
     }
 
     /**
-     * Detiene la animación (llamado al cerrar el wizard).
+     * Detiene la animación del preview.
+     * Llamado por WizardController al cambiar de paso.
      */
     public void stop() {
         if (animationTimeline != null) {
             animationTimeline.stop();
+            animationTimeline = null;
+            log.debug("Timeline detenido");
         }
     }
 }

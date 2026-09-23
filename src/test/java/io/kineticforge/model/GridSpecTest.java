@@ -11,18 +11,18 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("GridSpec - Especificacion de grilla")
+@DisplayName("GridSpec - Especificación de grilla")
 class GridSpecTest {
 
     @Test
-    @DisplayName("Builder por defecto crea 8x6 horizontal con punto guia")
-    void defaultBuilderCreatesCompactLandscapeWithGuideDot() {
+    @DisplayName("Builder por defecto crea 8x6 horizontal SIN punto guía")
+    void defaultBuilderCreatesCompactLandscapeWithoutGuideDot() {
         GridSpec spec = GridSpec.defaults();
 
         assertEquals(GridPreset.COMPACTA, spec.preset());
         assertEquals(PageOrientation.LANDSCAPE, spec.orientation());
         assertEquals(PageSize.A4, spec.pageSize());
-        assertTrue(spec.includeGuideDot());
+        assertFalse(spec.includeGuideDot());
         assertEquals(GuideDotStyle.CIRCLE, spec.guideDotStyle());
         assertEquals(GuideDotColor.LIGHT_GRAY, spec.guideDotColor());
     }
@@ -71,7 +71,7 @@ class GridSpecTest {
     }
 
     @Test
-    @DisplayName("Constructor rechaza punto guia con estilo NONE")
+    @DisplayName("Constructor rechaza punto guía con estilo NONE")
     void constructorRejectsGuideDotWithNoneStyle() {
         assertThrows(IllegalArgumentException.class, () -> new GridSpec(
                 GridPreset.COMPACTA, PageOrientation.LANDSCAPE, PageSize.A4,
@@ -80,7 +80,7 @@ class GridSpecTest {
     }
 
     @Test
-    @DisplayName("Constructor rechaza diametro no positivo")
+    @DisplayName("Constructor rechaza diámetro de punto guía no positivo")
     void constructorRejectsNonPositiveGuideDotDiameter() {
         assertThrows(IllegalArgumentException.class, () -> new GridSpec(
                 GridPreset.COMPACTA, PageOrientation.LANDSCAPE, PageSize.A4,
@@ -98,7 +98,7 @@ class GridSpecTest {
     }
 
     @Test
-    @DisplayName("pageWidthMm respeta orientacion")
+    @DisplayName("pageWidthMm respeta orientación")
     void pageWidthRespectsOrientation() {
         GridSpec portrait = GridSpec.builder()
                 .orientation(PageOrientation.PORTRAIT).build();

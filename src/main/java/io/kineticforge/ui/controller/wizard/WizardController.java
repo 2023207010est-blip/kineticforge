@@ -58,6 +58,9 @@ public class WizardController {
     private void showStep(WizardStep step) {
         log.debug("Mostrando paso: {}", step.getTitle());
 
+        // Detener animación del paso 4 si estaba activa
+        Step4ExportController.stopInstance();
+
         this.currentStep = step;
 
         try {

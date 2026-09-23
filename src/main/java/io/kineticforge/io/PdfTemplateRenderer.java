@@ -18,7 +18,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-
+import io.kineticforge.model.GridMetadata;
+import io.kineticforge.util.MetadataPaths;
 /**
  * Renderizador de plantillas PDF minimalista.
  *
@@ -79,6 +80,16 @@ public class PdfTemplateRenderer implements TemplateRenderer {
 
             document.save(output.toFile());
             log.info("Plantilla PDF generada: {}", output);
+
+            // Guardar metadatos JSON asociados
+            try {
+                GridMetadata metadata = GridMetadata.from(spec);
+                Path metadataPath = MetadataPaths.forTemplate(output);
+                metadata.save(metadataPath);
+                log.info("Metadatos JSON generados: {}", metadataPath);
+            } catch (IOException e) {
+                log.warn("No se pudieron guardar los metadatos JSON: {}", e.getMessage());
+            }
 
         } catch (IOException e) {
             throw new PdfGenerationException("No se pudo generar el PDF en: " + output, e);

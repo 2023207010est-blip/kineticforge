@@ -29,7 +29,8 @@ class WizardStateTest {
         assertNull(state.getSourceFile());
         assertNull(state.getOriginalImage());
         assertNull(state.getGridSpec());
-        assertNull(state.getDetectionResult());
+        assertNull(state.getMetadata());
+        assertNull(state.getCells());
         assertNull(state.getProcessedFrames());
         assertFalse(state.isLoadingComplete());
         assertFalse(state.isGridComplete());
@@ -103,12 +104,13 @@ class WizardStateTest {
         assertNull(state.getSourceFile());
         assertNull(state.getOriginalImage());
         assertNull(state.getGridSpec());
-        assertNull(state.getDetectionResult());
+        assertNull(state.getMetadata());
+        assertNull(state.getCells());
         assertNull(state.getProcessedFrames());
         assertFalse(state.isLoadingComplete());
         assertFalse(state.isGridComplete());
         assertFalse(state.isProcessComplete());
-        assertEquals(12, state.getExportConfig().fps());  // vuelve al default
+        assertEquals(12, state.getExportConfig().fps());
     }
 
     @Test
@@ -117,7 +119,8 @@ class WizardStateTest {
         assertNotNull(state.sourceFileProperty());
         assertNotNull(state.originalImageProperty());
         assertNotNull(state.gridSpecProperty());
-        assertNotNull(state.detectionResultProperty());
+        assertNotNull(state.metadataProperty());
+        assertNotNull(state.cellsProperty());
         assertNotNull(state.processedFramesProperty());
         assertNotNull(state.exportConfigProperty());
         assertNotNull(state.loadCompleteProperty());
