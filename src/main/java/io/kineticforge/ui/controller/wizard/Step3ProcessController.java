@@ -3,7 +3,6 @@ package io.kineticforge.ui.controller.wizard;
 import io.kineticforge.core.alignment.FrameAligner;
 import io.kineticforge.core.background.BackgroundRemover;
 import io.kineticforge.core.frames.FrameExtractor;
-import io.kineticforge.core.grid.GridDetectionResult;
 import io.kineticforge.ui.model.WizardState;
 import io.kineticforge.ui.util.Dialogs;
 import io.kineticforge.ui.util.ImageConverter;
@@ -21,6 +20,7 @@ import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
  * Controlador del paso 3: procesamiento de frames.
  *
  * @author KineticForge Team
- * @version 1.0.3
+ * @version 2.0.0
  * @since 2026
  */
 public class Step3ProcessController {
@@ -69,17 +69,15 @@ public class Step3ProcessController {
     private void setupButtons() {
         processButton.setOnAction(e -> startProcessing());
         nextButton.setOnAction(e -> {
-            if (onComplete != null) {
-                onComplete.run();
-            }
+            if (onComplete != null) onComplete.run();
         });
     }
 
     private void startProcessing() {
-        GridDetectionResult detection = state.getDetectionResult();
+        List<Rectangle> cells = state.getCells();
         BufferedImage originalImage = state.getOriginalImage();
 
-        if (detection == null || originalImage == null) {
+        if (cells == null || cells.isEmpty() || originalImage == null) {
             Dialogs.warn("Faltan datos", "Primero completá los pasos 1 y 2.");
             return;
         }
@@ -88,25 +86,21 @@ public class Step3ProcessController {
         nextButton.setDisable(true);
         framesGrid.getChildren().clear();
 
-        // Task con TODO el pipeline adentro (así los métodos protected
-        // updateMessage() / updateProgress() están accesibles)
         Task<List<BufferedImage>> task = new Task<>() {
             @Override
             protected List<BufferedImage> call() {
-                int total = detection.cellCount();
+                int total = cells.size();
                 log.info("Pipeline iniciado: {} frames", total);
 
-                // Paso 1: extraer frames (0.0 → 0.33)
                 updateMessage("Extrayendo frames...");
                 updateProgress(0.0, 1.0);
 
                 FrameExtractor extractor = new FrameExtractor();
-                List<BufferedImage> extracted = extractor.extract(originalImage, detection);
+                List<BufferedImage> extracted = extractor.extract(originalImage, cells);
 
                 updateProgress(0.33, 1.0);
                 log.debug("Extracción completa: {} frames", extracted.size());
 
-                // Paso 2: quitar fondo (0.33 → 0.85)
                 BackgroundRemover remover = new BackgroundRemover();
                 List<BufferedImage> noBackground = new ArrayList<>(extracted.size());
 
@@ -119,7 +113,6 @@ public class Step3ProcessController {
                     updateMessage("Quitando fondo: " + (i + 1) + " de " + total);
                 }
 
-                // Paso 3: alinear (0.85 → 1.0)
                 updateMessage("Alineando frames...");
                 updateProgress(0.85, 1.0);
 
@@ -134,7 +127,6 @@ public class Step3ProcessController {
             }
         };
 
-        // Binding del progreso a la UI
         progressLabel.textProperty().bind(task.messageProperty());
         progressBar.progressProperty().bind(task.progressProperty());
 
@@ -165,7 +157,7 @@ public class Step3ProcessController {
             progressBar.setProgress(0.0);
             processButton.setDisable(false);
             Dialogs.error("Error al procesar",
-                ex.getMessage() != null ? ex.getMessage() : ex.toString());
+                    ex.getMessage() != null ? ex.getMessage() : ex.toString());
         });
 
         Thread thread = new Thread(task, "frame-processor");
@@ -175,24 +167,18 @@ public class Step3ProcessController {
 
     private void displayThumbnails() {
         framesGrid.getChildren().clear();
-
         if (processedFrames == null || processedFrames.isEmpty()) return;
 
         for (int i = 0; i < processedFrames.size(); i++) {
             int row = i / GRID_COLUMNS;
             int col = i % GRID_COLUMNS;
-
             VBox thumb = createThumbnail(processedFrames.get(i), i);
             framesGrid.add(thumb, col, row);
         }
-
-        log.debug("Mostradas {} miniaturas en grid de {} columnas",
-            processedFrames.size(), GRID_COLUMNS);
     }
 
     private VBox createThumbnail(BufferedImage frame, int index) {
         Image fxImage = ImageConverter.toFxImage(frame);
-
         ImageView imageView = new ImageView(fxImage);
         imageView.setFitWidth(THUMBNAIL_SIZE);
         imageView.setFitHeight(THUMBNAIL_SIZE);

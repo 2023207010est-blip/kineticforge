@@ -1,13 +1,14 @@
 package io.kineticforge.ui.model;
 
-import io.kineticforge.core.grid.GridDetectionResult;
 import io.kineticforge.model.ExportConfig;
+import io.kineticforge.model.GridMetadata;
 import io.kineticforge.model.GridSpec;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
 
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,8 +16,11 @@ import java.util.List;
 /**
  * Estado compartido entre los pasos del wizard.
  *
+ * <p>Ahora usa {@link GridMetadata} (medidas exactas del PDF) en vez
+ * de {@code GridDetectionResult} (auto-detección de líneas).</p>
+ *
  * @author KineticForge Team
- * @version 1.0.0
+ * @version 2.0.0
  * @since 2026
  */
 public class WizardState {
@@ -24,7 +28,8 @@ public class WizardState {
     private final ObjectProperty<Path> sourceFile = new SimpleObjectProperty<>();
     private final ObjectProperty<BufferedImage> originalImage = new SimpleObjectProperty<>();
     private final ObjectProperty<GridSpec> gridSpec = new SimpleObjectProperty<>();
-    private final ObjectProperty<GridDetectionResult> detectionResult = new SimpleObjectProperty<>();
+    private final ObjectProperty<GridMetadata> metadata = new SimpleObjectProperty<>();
+    private final ObjectProperty<List<Rectangle>> cells = new SimpleObjectProperty<>();
     private final ObjectProperty<List<BufferedImage>> processedFrames = new SimpleObjectProperty<>();
     private final ObjectProperty<ExportConfig> exportConfig =
             new SimpleObjectProperty<>(ExportConfig.defaults());
@@ -32,6 +37,8 @@ public class WizardState {
     private final BooleanProperty loadComplete = new SimpleBooleanProperty(false);
     private final BooleanProperty gridComplete = new SimpleBooleanProperty(false);
     private final BooleanProperty processComplete = new SimpleBooleanProperty(false);
+
+    // --- Getters y setters ---
 
     public Path getSourceFile() { return sourceFile.get(); }
     public void setSourceFile(Path p) { sourceFile.set(p); }
@@ -45,9 +52,13 @@ public class WizardState {
     public void setGridSpec(GridSpec spec) { gridSpec.set(spec); }
     public ObjectProperty<GridSpec> gridSpecProperty() { return gridSpec; }
 
-    public GridDetectionResult getDetectionResult() { return detectionResult.get(); }
-    public void setDetectionResult(GridDetectionResult r) { detectionResult.set(r); }
-    public ObjectProperty<GridDetectionResult> detectionResultProperty() { return detectionResult; }
+    public GridMetadata getMetadata() { return metadata.get(); }
+    public void setMetadata(GridMetadata m) { metadata.set(m); }
+    public ObjectProperty<GridMetadata> metadataProperty() { return metadata; }
+
+    public List<Rectangle> getCells() { return cells.get(); }
+    public void setCells(List<Rectangle> c) { cells.set(c); }
+    public ObjectProperty<List<Rectangle>> cellsProperty() { return cells; }
 
     public List<BufferedImage> getProcessedFrames() { return processedFrames.get(); }
     public void setProcessedFrames(List<BufferedImage> frames) { processedFrames.set(frames); }
@@ -73,7 +84,8 @@ public class WizardState {
         sourceFile.set(null);
         originalImage.set(null);
         gridSpec.set(null);
-        detectionResult.set(null);
+        metadata.set(null);
+        cells.set(null);
         processedFrames.set(null);
         exportConfig.set(ExportConfig.defaults());
         loadComplete.set(false);
