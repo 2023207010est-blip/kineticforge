@@ -28,6 +28,8 @@
     <logback.version>1.5.6</logback.version>
   </properties>
 
+
+
   <dependencies>
     <!-- JavaFX -->
     <dependency>
@@ -54,6 +56,14 @@
       <artifactId>pdfbox</artifactId>
       <version>${pdfbox.version}</version>
     </dependency>
+
+    <!-- JSON para metadatos de plantillas -->
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.11.0</version>
+    </dependency>
+
 
     <!-- Formatos de imagen extendidos (TIFF, BMP) -->
     <dependency>
