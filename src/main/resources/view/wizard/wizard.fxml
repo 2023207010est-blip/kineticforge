@@ -21,6 +21,9 @@
         <Label text="Convierte hojas A4 en GIF animados con fondo transparente"
                styleClass="subtitle"/>
       </VBox>
+      <Button fx:id="bgToolButton" text="🎨 Quitar fondo"
+              onAction="#onOpenBgTool"
+              styleClass="button-outlined"/>
       <Button fx:id="templatesButton" text="📄 Plantillas"
               onAction="#onOpenTemplates"
               styleClass="button-outlined"/>

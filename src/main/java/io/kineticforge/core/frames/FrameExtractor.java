@@ -13,17 +13,19 @@ import java.util.Objects;
 /**
  * Extrae los frames individuales de una imagen escaneada.
  *
- * <p>Toma la imagen completa y una lista de rectángulos (calculados
- * a partir de las medidas EXACTAS de la plantilla), y devuelve cada
- * celda como una {@link BufferedImage} independiente.</p>
+ * <p>Recorta cada celda con un MARGEN INTERNO para evitar capturar
+ * las líneas del template en el frame resultante.</p>
  *
  * @author KineticForge Team
- * @version 2.0.0
+ * @version 3.0.0
  * @since 2026
  */
 public class FrameExtractor {
 
     private static final Logger log = LoggerFactory.getLogger(FrameExtractor.class);
+
+    /** Margen interno (en píxeles) para evitar las líneas del template. */
+    private static final int INNER_MARGIN_PX = 8;
 
     /**
      * Extrae todos los frames de la imagen según los rectángulos dados.
@@ -32,8 +34,8 @@ public class FrameExtractor {
         Objects.requireNonNull(image, "image no puede ser nulo");
         Objects.requireNonNull(cells, "cells no puede ser nulo");
 
-        log.info("Extrayendo {} frames de imagen de {}×{}",
-                cells.size(), image.getWidth(), image.getHeight());
+        log.info("Extrayendo {} frames de imagen de {}x{} (margen interno: {} px)",
+                cells.size(), image.getWidth(), image.getHeight(), INNER_MARGIN_PX);
 
         List<BufferedImage> frames = new ArrayList<>(cells.size());
 
@@ -46,21 +48,36 @@ public class FrameExtractor {
     }
 
     private BufferedImage extractSingleFrame(BufferedImage image, Rectangle cell, int index) {
-        if (cell.x < 0 || cell.y < 0
-                || cell.x + cell.width > image.getWidth()
-                || cell.y + cell.height > image.getHeight()) {
+        // Recortar con margen interno
+        int x = cell.x + INNER_MARGIN_PX;
+        int y = cell.y + INNER_MARGIN_PX;
+        int w = cell.width - 2 * INNER_MARGIN_PX;
+        int h = cell.height - 2 * INNER_MARGIN_PX;
+
+        // Validar que quede espacio
+        if (w <= 0 || h <= 0) {
             throw new ImageProcessingException(String.format(
-                    "Rectángulo del frame %d está fuera de los límites: %s (imagen: %dx%d)",
-                    index, cell, image.getWidth(), image.getHeight()));
+                    "Celda %d es demasiado chica para el margen interno: %dx%d",
+                    index, cell.width, cell.height));
         }
 
-        BufferedImage frame = new BufferedImage(
-                cell.width, cell.height, image.getType());
+        // Ajustar si se sale de la imagen
+        if (x < 0) { w += x; x = 0; }
+        if (y < 0) { h += y; y = 0; }
+        if (x + w > image.getWidth()) w = image.getWidth() - x;
+        if (y + h > image.getHeight()) h = image.getHeight() - y;
 
-        for (int y = 0; y < cell.height; y++) {
-            for (int x = 0; x < cell.width; x++) {
-                int rgb = image.getRGB(cell.x + x, cell.y + y);
-                frame.setRGB(x, y, rgb);
+        if (w <= 0 || h <= 0) {
+            throw new ImageProcessingException(String.format(
+                    "Celda %d fuera de límites: %s", index, cell));
+        }
+
+        BufferedImage frame = new BufferedImage(w, h, image.getType());
+
+        for (int fy = 0; fy < h; fy++) {
+            for (int fx = 0; fx < w; fx++) {
+                int rgb = image.getRGB(x + fx, y + fy);
+                frame.setRGB(fx, fy, rgb);
             }
         }
 

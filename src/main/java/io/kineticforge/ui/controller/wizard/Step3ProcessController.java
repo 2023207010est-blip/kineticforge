@@ -23,7 +23,12 @@ import org.slf4j.LoggerFactory;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Controlador del paso 3: procesamiento de frames.
@@ -88,31 +93,65 @@ public class Step3ProcessController {
 
         Task<List<BufferedImage>> task = new Task<>() {
             @Override
-            protected List<BufferedImage> call() {
+            protected List<BufferedImage> call() throws Exception {
                 int total = cells.size();
                 log.info("Pipeline iniciado: {} frames", total);
 
+                // ============================================================
+                // PASO 1: Extraer frames
+                // ============================================================
                 updateMessage("Extrayendo frames...");
                 updateProgress(0.0, 1.0);
 
                 FrameExtractor extractor = new FrameExtractor();
                 List<BufferedImage> extracted = extractor.extract(originalImage, cells);
 
-                updateProgress(0.33, 1.0);
-                log.debug("Extracción completa: {} frames", extracted.size());
+                updateProgress(0.15, 1.0);
+                log.info("Extracción completa: {} frames", extracted.size());
 
-                BackgroundRemover remover = new BackgroundRemover();
-                List<BufferedImage> noBackground = new ArrayList<>(extracted.size());
+                // ============================================================
+                // PASO 2: Quitar fondo EN PARALELO
+                // ============================================================
+                int cores = Math.min(Runtime.getRuntime().availableProcessors(), 4);
+                log.info("Quitando fondo en paralelo con {} threads", cores);
 
-                for (int i = 0; i < extracted.size(); i++) {
-                    BufferedImage frame = remover.removeBackground(extracted.get(i));
-                    noBackground.add(frame);
+                updateMessage("Quitando fondo en paralelo con " + cores + " threads...");
 
-                    double progress = 0.33 + 0.52 * (i + 1) / (double) total;
-                    updateProgress(progress, 1.0);
-                    updateMessage("Quitando fondo: " + (i + 1) + " de " + total);
+                ExecutorService executor = Executors.newFixedThreadPool(cores);
+                List<BufferedImage> noBackground = new ArrayList<>(Collections.nCopies(total, null));
+                AtomicInteger completed = new AtomicInteger(0);
+
+                try {
+                    List<Future<?>> futures = new ArrayList<>(total);
+
+                    for (int i = 0; i < extracted.size(); i++) {
+                        final int index = i;
+                        final BufferedImage frame = extracted.get(i);
+
+                        futures.add(executor.submit(() -> {
+                            // Cada thread tiene su propio removedor (thread-safe)
+                            BackgroundRemover remover = new BackgroundRemover();
+                            BufferedImage result = remover.removeBackground(frame);
+                            noBackground.set(index, result);
+
+                            int done = completed.incrementAndGet();
+                            double progress = 0.15 + 0.7 * done / (double) total;
+                            updateProgress(progress, 1.0);
+                            updateMessage("Quitando fondo: " + done + " de " + total);
+                        }));
+                    }
+
+                    // Esperar a que terminen todos
+                    for (Future<?> f : futures) {
+                        f.get();
+                    }
+                } finally {
+                    executor.shutdown();
                 }
 
+                // ============================================================
+                // PASO 3: Alinear
+                // ============================================================
                 updateMessage("Alineando frames...");
                 updateProgress(0.85, 1.0);
 

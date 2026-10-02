@@ -14,7 +14,7 @@ import java.util.Objects;
  * Aplicación principal de KineticForge.
  *
  * @author KineticForge Team
- * @version 1.0.0
+ * @version 1.1.0
  * @since 2026
  */
 public class KineticForgeApplication extends Application {
@@ -36,7 +36,7 @@ public class KineticForgeApplication extends Application {
             Objects.requireNonNull(
                 getClass().getResource("/css/app.css")).toExternalForm());
 
-        stage.setTitle("KineticForge v1.0.0");
+        stage.setTitle("KineticForge v1.1.0");
         stage.setScene(scene);
         stage.setMinWidth(1024);
         stage.setMinHeight(720);

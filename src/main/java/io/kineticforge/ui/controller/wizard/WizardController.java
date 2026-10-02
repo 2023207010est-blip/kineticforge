@@ -2,45 +2,39 @@ package io.kineticforge.ui.controller.wizard;
 
 import io.kineticforge.ui.model.WizardState;
 import io.kineticforge.ui.model.WizardStep;
+import io.kineticforge.ui.util.ThemeManager;
+import io.kineticforge.ui.util.TemplatesDialog;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
+import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.kineticforge.ui.util.ThemeManager;
+
 import java.io.IOException;
-import io.kineticforge.ui.util.TemplatesDialog;
+
 /**
  * Controlador principal del wizard.
  *
- * <p>Orquesta la navegación entre los 4 pasos y mantiene el estado
- * compartido. Cada paso se carga dinámicamente en el panel central.</p>
- *
  * @author KineticForge Team
- * @version 1.0.0
+ * @version 1.2.0
  * @since 2026
  */
 public class WizardController {
 
     private static final Logger log = LoggerFactory.getLogger(WizardController.class);
 
-    // Elementos del wizard.fxml
     @FXML private StackPane contentArea;
     @FXML private Label stepIndicator;
     @FXML private Button backButton;
     @FXML private Button nextButton;
     @FXML private Button themeButton;
     @FXML private Button templatesButton;
-    @FXML
-    private void onOpenTemplates() {
-        TemplatesDialog.show();
-    }
+    @FXML private Button bgToolButton;
 
     private final WizardState state = new WizardState();
     private WizardStep currentStep = WizardStep.LOAD_IMAGE;
@@ -52,13 +46,9 @@ public class WizardController {
         showStep(WizardStep.LOAD_IMAGE);
     }
 
-    /**
-     * Muestra el paso indicado cargando su FXML.
-     */
     private void showStep(WizardStep step) {
         log.debug("Mostrando paso: {}", step.getTitle());
 
-        // Detener animación del paso 4 si estaba activa
         Step4ExportController.stopInstance();
 
         this.currentStep = step;
@@ -68,7 +58,6 @@ public class WizardController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
             Parent stepContent = loader.load();
 
-            // Inicializar el controlador del paso con el estado compartido
             initializeStepController(loader.getController(), step);
 
             contentArea.getChildren().clear();
@@ -138,6 +127,33 @@ public class WizardController {
             themeButton.setText("☀ Claro");
         } else {
             themeButton.setText("☾ Oscuro");
+        }
+    }
+
+    @FXML
+    private void onOpenTemplates() {
+        TemplatesDialog.show();
+    }
+
+    @FXML
+    private void onOpenBgTool() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    getClass().getResource("/view/bg-tool.fxml"));
+            Parent root = loader.load();
+
+            Stage stage = new Stage();
+            stage.setTitle("Quitar fondo - KineticForge");
+            Scene scene = new Scene(root);
+            scene.getStylesheets().add(
+                    getClass().getResource("/css/app.css").toExternalForm());
+            stage.setScene(scene);
+            stage.initOwner(contentArea.getScene().getWindow());
+            stage.show();
+
+            log.info("Herramienta de fondo abierta");
+        } catch (Exception e) {
+            log.error("Error abriendo bg-tool", e);
         }
     }
 
