@@ -1,10 +1,12 @@
 /* ============================================================ */
 /* KineticForge - Estilos base                                   */
 /* ============================================================ */
-
 .root {
-    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-family: "Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji",
+    "Noto Sans", "DejaVu Sans", sans-serif;
 }
+
+
 
 .header {
     -fx-background-color: -color-bg-subtle;
@@ -66,11 +68,7 @@
     -fx-min-height: 400;
 }
 
-.drop-label {
-    -fx-font-size: 16px;
-    -fx-text-fill: -color-fg-muted;
-    -fx-text-alignment: center;
-}
+
 
 .file-info {
     -fx-font-size: 12px;
@@ -189,4 +187,126 @@
     -fx-background-color: -color-bg-subtle;
     -fx-border-color: -color-border-default transparent transparent transparent;
     -fx-border-width: 1 0 0 0;
+}
+/* ============================================================
+   NOTIFICACIONES TOAST
+   ============================================================ */
+.toast {
+    -fx-padding: 12 20 12 20;
+    -fx-background-radius: 8;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.4), 12, 0, 0, 4);
+}
+
+.toast-success {
+    -fx-background-color: linear-gradient(to right, #10B981, #059669);
+}
+
+.toast-info {
+    -fx-background-color: linear-gradient(to right, #3B82F6, #2563EB);
+}
+
+.toast-warn {
+    -fx-background-color: linear-gradient(to right, #F59E0B, #D97706);
+}
+
+.toast-error {
+    -fx-background-color: linear-gradient(to right, #EF4444, #DC2626);
+}
+
+/* ============================================================
+   PASO COMPLETADO (verde)
+   ============================================================ */
+.step-completed {
+    -fx-text-fill: #10B981;
+    -fx-font-weight: bold;
+}
+
+/* TitledPane completado */
+.titled-pane.completed > .title {
+    -fx-text-fill: #10B981;
+    -fx-font-weight: bold;
+}
+
+.titled-pane.completed > .title > .arrow-button > .arrow {
+    -fx-background-color: #10B981;
+}
+
+/* ============================================================
+   STEP INDICATOR
+   ============================================================ */
+.step-indicator {
+    -fx-text-fill: #6B7280;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.step-indicator.completed {
+    -fx-text-fill: #10B981;
+}
+/* ============================================================
+   TITLEDPANE COMPACTO
+   ============================================================ */
+.titled-pane > .title {
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 13px;
+}
+
+.titled-pane > .content {
+    -fx-padding: 8;
+    -fx-background-color: transparent;
+}
+
+.titled-pane > .content > * {
+    -fx-padding: 0;
+}
+
+/* Separación entre secciones */
+.titled-pane {
+    -fx-padding: 0;
+}
+
+/* ListView compacta */
+.list-view {
+    -fx-padding: 0;
+}
+
+.list-cell {
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 12px;
+}
+
+/* Slider compacto */
+.slider .track {
+    -fx-pref-height: 4px;
+}
+
+/* ComboBox compacto */
+.combo-box {
+    -fx-padding: 2;
+}
+
+/* Label de secciones */
+.section-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #6B7280;
+}
+
+/* Botones compactos dentro del panel */
+.controls-panel .button {
+    -fx-padding: 6 10 6 10;
+    -fx-font-size: 12px;
+}
+.titled-pane > .title {
+    -fx-min-height: 32;
+    -fx-pref-height: 32;
+}
+.drop-label {
+    -fx-font-size: 16px;
+    -fx-text-fill: #6B7280;
+    -fx-text-alignment: center;
+    -fx-wrap-text: true;
 }

@@ -191,10 +191,10 @@ public record GridSpec(
      * Builder mutable para crear instancias de {@link GridSpec}.
      */
     public static final class Builder {
-        private GridPreset preset = GridPreset.COMPACTA;
+        private GridPreset preset = GridPreset.ESTANDAR;
         private PageOrientation orientation = PageOrientation.LANDSCAPE;
         private PageSize pageSize = PageSize.A4;
-        private double marginMm = 5.0;
+        private double marginMm = 13.0;
         private double gutterMm = 2.0;
         private boolean includeGuideDot = false;
         private GuideDotStyle guideDotStyle = GuideDotStyle.CIRCLE;

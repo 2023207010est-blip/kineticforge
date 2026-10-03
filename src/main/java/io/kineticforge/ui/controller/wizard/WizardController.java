@@ -1,8 +1,9 @@
 package io.kineticforge.ui.controller.wizard;
 
 import io.kineticforge.ui.model.WizardState;
-import io.kineticforge.ui.util.Dialogs;
 import io.kineticforge.ui.model.WizardStep;
+import io.kineticforge.ui.util.Dialogs;
+import io.kineticforge.ui.util.Notifications;
 import io.kineticforge.ui.util.ThemeManager;
 import io.kineticforge.ui.util.TemplatesDialog;
 import javafx.fxml.FXML;
@@ -19,16 +20,17 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 
 /**
- * Controlador principal del wizard.
+ * Controlador principal del wizard — versión 2 pasos.
  *
  * @author KineticForge Team
- * @version 1.2.0
+ * @version 3.0.0
  * @since 2026
  */
 public class WizardController {
 
     private static final Logger log = LoggerFactory.getLogger(WizardController.class);
 
+    @FXML private StackPane rootStack;
     @FXML private StackPane contentArea;
     @FXML private Label stepIndicator;
     @FXML private Button backButton;
@@ -39,10 +41,15 @@ public class WizardController {
 
     private final WizardState state = new WizardState();
     private WizardStep currentStep = WizardStep.LOAD_IMAGE;
+    private WizardStepController activeController;
 
     @FXML
     public void initialize() {
-        log.info("Wizard inicializado");
+        log.info("Wizard inicializado (2 pasos)");
+
+        // Enganchar el sistema de notificaciones al StackPane raíz
+        Notifications.attach(rootStack);
+
         updateThemeButton(ThemeManager.isDarkMode());
         showStep(WizardStep.LOAD_IMAGE);
     }
@@ -50,8 +57,7 @@ public class WizardController {
     private void showStep(WizardStep step) {
         log.debug("Mostrando paso: {}", step.getTitle());
 
-        Step4ExportController.stopInstance();
-
+        cleanupActiveController();
         this.currentStep = step;
 
         try {
@@ -59,7 +65,14 @@ public class WizardController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
             Parent stepContent = loader.load();
 
-            initializeStepController(loader.getController(), step);
+            Object controller = loader.getController();
+            if (!(controller instanceof WizardStepController wsc)) {
+                throw new IllegalStateException(
+                    "El controlador " + controller.getClass().getSimpleName()
+                        + " no implementa WizardStepController");
+            }
+            activeController = wsc;
+            wsc.init(state, this::goNext);
 
             contentArea.getChildren().clear();
             contentArea.getChildren().add(stepContent);
@@ -71,65 +84,55 @@ public class WizardController {
         }
     }
 
+    private void cleanupActiveController() {
+        if (activeController != null) {
+            try {
+                activeController.cleanup();
+            } catch (Exception e) {
+                log.error("Error en cleanup", e);
+            }
+            activeController = null;
+        }
+    }
+
     private String getFxmlPathFor(WizardStep step) {
         return switch (step) {
             case LOAD_IMAGE -> "/view/wizard/step1-load.fxml";
-            case DETECT_GRID -> "/view/wizard/step2-grid.fxml";
-            case PROCESS_FRAMES -> "/view/wizard/step3-process.fxml";
-            case EXPORT -> "/view/wizard/step4-export.fxml";
+            case WORKSPACE  -> "/view/wizard/workspace.fxml";
         };
-    }
-
-    private void initializeStepController(Object controller, WizardStep step) {
-        if (controller instanceof Step1LoadController c) {
-            c.init(state, () -> goNext());
-        } else if (controller instanceof Step2GridController c) {
-            c.init(state, () -> goNext());
-        } else if (controller instanceof Step3ProcessController c) {
-            c.init(state, () -> goNext());
-        } else if (controller instanceof Step4ExportController c) {
-            c.init(state, () -> log.info("Wizard completado"));
-        }
     }
 
     private void updateNavigation(WizardStep step) {
         stepIndicator.setText(step.getTitle());
         backButton.setDisable(step == WizardStep.LOAD_IMAGE);
-        nextButton.setDisable(step == WizardStep.EXPORT);
+        nextButton.setDisable(true); // Se controla desde cada paso
     }
 
     @FXML
     private void onBack() {
-        if (currentStep != WizardStep.LOAD_IMAGE) {
-            showStep(currentStep.previous());
+        if (currentStep == WizardStep.WORKSPACE) {
+            showStep(WizardStep.LOAD_IMAGE);
         }
     }
 
     @FXML
     private void onNext() {
-        if (currentStep == WizardStep.EXPORT) {
-            return;
-        }
         String problem = validateBeforeLeaving(currentStep);
         if (problem != null) {
             Dialogs.warn("Falta un paso", problem);
             return;
         }
-        showStep(currentStep.next());
+        if (currentStep.hasNext()) {
+            showStep(currentStep.next());
+        }
     }
 
-    /** @return mensaje si no se puede avanzar desde el paso dado; null si se puede. */
     private String validateBeforeLeaving(WizardStep step) {
-        return switch (step) {
-            case LOAD_IMAGE -> state.getSheets().isEmpty()
-                    ? "Cargá al menos una hoja o imagen." : null;
-            case DETECT_GRID -> state.allSheetsHaveGrid()
-                    ? null : "Todas las hojas necesitan una grilla. Presioná «Aplicar» en cada una.";
-            case PROCESS_FRAMES -> state.getProcessedFrames() == null
-                    || state.getProcessedFrames().isEmpty()
-                    ? "Presioná «Procesar frames» antes de continuar." : null;
-            default -> null;
-        };
+        if (step == WizardStep.LOAD_IMAGE) {
+            return state.getSheets().isEmpty()
+                ? "Cargá al menos una hoja o imagen." : null;
+        }
+        return null;
     }
 
     private void goNext() {
@@ -144,11 +147,7 @@ public class WizardController {
     }
 
     private void updateThemeButton(boolean isDark) {
-        if (isDark) {
-            themeButton.setText("☀ Claro");
-        } else {
-            themeButton.setText("☾ Oscuro");
-        }
+        themeButton.setText(isDark ? "☀ Claro" : "☾ Oscuro");
     }
 
     @FXML
@@ -160,19 +159,16 @@ public class WizardController {
     private void onOpenBgTool() {
         try {
             FXMLLoader loader = new FXMLLoader(
-                    getClass().getResource("/view/bg-tool.fxml"));
+                getClass().getResource("/view/bg-tool.fxml"));
             Parent root = loader.load();
-
             Stage stage = new Stage();
             stage.setTitle("Quitar fondo - KineticForge");
             Scene scene = new Scene(root);
             scene.getStylesheets().add(
-                    getClass().getResource("/css/app.css").toExternalForm());
+                getClass().getResource("/css/app.css").toExternalForm());
             stage.setScene(scene);
             stage.initOwner(contentArea.getScene().getWindow());
             stage.show();
-
-            log.info("Herramienta de fondo abierta");
         } catch (Exception e) {
             log.error("Error abriendo bg-tool", e);
         }

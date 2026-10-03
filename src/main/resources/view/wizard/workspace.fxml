@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.kineticforge.ui.controller.wizard.WorkspaceController">
+
+  <center>
+    <SplitPane dividerPositions="0.68" styleClass="workspace-split">
+
+      <!-- ============================================================ -->
+      <!-- IZQUIERDA: Preview (grilla + frames)                          -->
+      <!-- ============================================================ -->
+      <VBox spacing="8">
+        <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+          <Label text="Vista previa" styleClass="section-title"/>
+          <HBox HBox.hgrow="ALWAYS"/>
+          <ToggleButton fx:id="viewGridToggle" text="Grilla" selected="true">
+            <toggleGroup><ToggleGroup fx:id="viewGroup"/></toggleGroup>
+          </ToggleButton>
+          <ToggleButton fx:id="viewFramesToggle" text="Frames">
+            <toggleGroup><fx:reference source="viewGroup"/></toggleGroup>
+          </ToggleButton>
+        </HBox>
+
+        <!-- Vista de grilla -->
+        <StackPane fx:id="gridPreviewPane" VBox.vgrow="ALWAYS"
+                   styleClass="preview-pane" minWidth="400" minHeight="300"
+                   maxWidth="Infinity" maxHeight="Infinity">
+          <Canvas fx:id="previewCanvas"/>
+        </StackPane>
+
+        <!-- Vista de frames procesados -->
+        <ScrollPane fx:id="framesScroll" VBox.vgrow="ALWAYS"
+                    fitToWidth="true" styleClass="preview-scroll"
+                    visible="false" managed="false">
+          <VBox spacing="14">
+            <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+            <!-- Preview animado -->
+            <StackPane styleClass="preview-pane" minHeight="220" prefHeight="260">
+              <ImageView fx:id="animatedPreview"
+                         preserveRatio="true"
+                         smooth="true"/>
+            </StackPane>
+
+            <HBox spacing="8" alignment="CENTER_LEFT">
+              <Label text="Frames procesados" styleClass="section-title"/>
+              <HBox HBox.hgrow="ALWAYS"/>
+              <Label fx:id="framesCountLabel" text="" styleClass="file-info"/>
+            </HBox>
+
+            <!-- Thumbnails -->
+            <GridPane fx:id="framesGrid" hgap="6" vgap="6" alignment="CENTER"/>
+          </VBox>
+        </ScrollPane>
+
+      </VBox>
+
+      <!-- ============================================================ -->
+      <!-- DERECHA: Controles colapsables                                -->
+      <!-- ============================================================ -->
+      <ScrollPane fitToWidth="true" styleClass="controls-panel" prefWidth="360">
+        <VBox spacing="10">
+          <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+
+          <!-- ================================================ -->
+          <!-- Grilla                                            -->
+          <!-- ================================================ -->
+          <TitledPane fx:id="gridPane" text="◪ Grilla" expanded="true">
+            <VBox spacing="10">
+              <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+
+              <Label fx:id="gridAutoLabel" text="" wrapText="true"
+                     styleClass="file-info"/>
+
+              <Label text="Hojas" styleClass="section-title"/>
+              <ListView fx:id="sheetList" prefHeight="100" minHeight="70"/>
+
+              <Button fx:id="autoDetectButton" text="◉ Detectar grilla automáticamente"
+                      maxWidth="Infinity" styleClass="button-primary"/>
+
+              <CheckBox fx:id="manualModeCheck" text="Ajustar grilla manualmente"/>
+
+              <VBox fx:id="manualPanel" spacing="10" visible="false" managed="false">
+                <HBox spacing="8">
+                  <ToggleButton fx:id="gridModeToggle" text="Hoja con grilla" selected="true">
+                    <toggleGroup><ToggleGroup fx:id="modeGroup"/></toggleGroup>
+                  </ToggleButton>
+                  <ToggleButton fx:id="singleModeToggle" text="Imagen suelta">
+                    <toggleGroup><fx:reference source="modeGroup"/></toggleGroup>
+                  </ToggleButton>
+                </HBox>
+
+                <VBox fx:id="gridControls" spacing="10">
+                  <VBox spacing="4">
+                    <Label text="Preset de grilla"/>
+                    <ComboBox fx:id="presetCombo" maxWidth="Infinity"/>
+                  </VBox>
+                  <VBox spacing="4">
+                    <Label text="Orientación"/>
+                    <HBox spacing="8">
+                      <ToggleButton fx:id="portraitToggle" text="Vertical">
+                        <toggleGroup><ToggleGroup fx:id="orientationGroup"/></toggleGroup>
+                      </ToggleButton>
+                      <ToggleButton fx:id="landscapeToggle" text="Horizontal" selected="true">
+                        <toggleGroup><fx:reference source="orientationGroup"/></toggleGroup>
+                      </ToggleButton>
+                    </HBox>
+                  </VBox>
+                  <VBox spacing="4">
+                    <Label fx:id="marginLabel" text="Margen: 5 mm"/>
+                    <Slider fx:id="marginSlider" min="5" max="30" value="5" blockIncrement="1"/>
+                  </VBox>
+                  <CheckBox fx:id="guideDotCheck" text="Incluir punto guía"/>
+                </VBox>
+
+                <HBox spacing="8">
+                  <Button fx:id="applyCurrentButton" text="✓ Esta hoja"
+                          maxWidth="Infinity" HBox.hgrow="ALWAYS"
+                          styleClass="button-primary"/>
+                  <Button fx:id="applyAllButton" text="▢ Todas"
+                          maxWidth="Infinity" HBox.hgrow="ALWAYS"
+                          styleClass="button-outlined"/>
+                </HBox>
+              </VBox>
+
+              <Label fx:id="gridStatusLabel" text="" wrapText="true"
+                     styleClass="status-label"/>
+            </VBox>
+          </TitledPane>
+
+          <!-- ================================================ -->
+          <!-- Procesar                                          -->
+          <!-- ================================================ -->
+          <TitledPane fx:id="processPane" text="⚙ Procesar frames">
+            <VBox spacing="10">
+              <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+
+              <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="Quitafondos:"/>
+                <ComboBox fx:id="methodCombo" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+              </HBox>
+              <CheckBox fx:id="skipEmptyCheck" text="Omitir celdas vacías" selected="true"/>
+
+              <Label fx:id="processStatusLabel" text="Presioná «Procesar» para comenzar."
+                     wrapText="true" styleClass="file-info"/>
+
+              <ProgressBar fx:id="processProgressBar" progress="0.0"
+                           maxWidth="Infinity" prefHeight="8"/>
+
+              <Button fx:id="processButton" text="⚙ Procesar frames"
+                      maxWidth="Infinity" styleClass="button-primary"/>
+            </VBox>
+          </TitledPane>
+
+          <!-- ================================================ -->
+          <!-- Exportar                                          -->
+          <!-- ================================================ -->
+          <TitledPane fx:id="exportPane" text="▤ Exportar">
+            <VBox spacing="10">
+              <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+
+              <VBox spacing="4">
+                <Label text="Formato"/>
+                <ComboBox fx:id="formatCombo" maxWidth="Infinity"/>
+              </VBox>
+
+              <VBox spacing="4">
+                <Label fx:id="fpsLabel" text="FPS: 12"/>
+                <Slider fx:id="fpsSlider" min="1" max="30" value="12"
+                        blockIncrement="1" showTickLabels="true"
+                        showTickMarks="true" majorTickUnit="5" minorTickCount="4"/>
+              </VBox>
+
+              <CheckBox fx:id="loopCheck" text="Reproducir en loop" selected="true"/>
+
+              <Label text="Resumen:" styleClass="section-title"/>
+              <Label fx:id="exportSummaryLabel" text="" wrapText="true"
+                     styleClass="file-info"/>
+
+              <ProgressBar fx:id="exportProgressBar" progress="0.0"
+                           maxWidth="Infinity" prefHeight="8"/>
+
+              <Button fx:id="exportButton" text="▤ Exportar…"
+                      maxWidth="Infinity" styleClass="button-primary"
+                      disable="true"/>
+
+              <Label fx:id="exportStatusLabel" text="" wrapText="true"
+                     styleClass="status-label"/>
+            </VBox>
+          </TitledPane>
+
+          <!-- ================================================ -->
+          <!-- Historial                                         -->
+          <!-- ================================================ -->
+          <TitledPane fx:id="historyPane" text="≡ Historial" expanded="false">
+            <VBox spacing="8">
+              <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+              <ListView fx:id="historyList" prefHeight="150"/>
+              <HBox spacing="8">
+                <Button fx:id="openFolderButton" text="▤ Abrir carpeta"
+                        maxWidth="Infinity" HBox.hgrow="ALWAYS"
+                        styleClass="button-outlined"/>
+                <Button fx:id="clearHistoryButton" text="🗑"
+                        styleClass="button-outlined"/>
+              </HBox>
+            </VBox>
+          </TitledPane>
+
+        </VBox>
+      </ScrollPane>
+
+    </SplitPane>
+  </center>
+
+</BorderPane>

@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  * @version 2.0.0
  * @since 2026
  */
-public class Step1LoadController {
+public class Step1LoadController implements WizardStepController {
 
     private static final Logger log = LoggerFactory.getLogger(Step1LoadController.class);
 
@@ -63,6 +63,7 @@ public class Step1LoadController {
     private Runnable onComplete;
     private Path lastDirectory;
 
+    @Override
     public void init(WizardState state, Runnable onComplete) {
         this.state = state;
         this.onComplete = onComplete;
@@ -273,5 +274,15 @@ public class Step1LoadController {
             posB = mb.end();
         }
         return a.substring(posA).compareToIgnoreCase(b.substring(posB));
+    }
+    @Override
+    public void cleanup() {
+        if (previewImage != null) {
+            previewImage.setImage(null);
+        }
+        // ⚠️ NO limpiar sheetList aquí: comparte items con state.getSheets()
+        state = null;
+        onComplete = null;
+        log.debug("Step1 cleanup completo");
     }
 }
