@@ -4,6 +4,9 @@ import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import io.kineticforge.core.background.BackgroundRemover;
+import io.kineticforge.core.background.Paper;
+import io.kineticforge.core.background.PriorGuidedRemover;
 import io.kineticforge.exception.ImageProcessingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,137 +18,158 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * Removedor de fondo usando el modelo U2-Net con ONNX Runtime.
+ * Removedor de fondo con U2-Net (ONNX Runtime) + refinado de bordes.
+ *
+ * <p>La red solo aporta una máscara de "qué es sujeto"; el borde final lo
+ * calcula {@link PriorGuidedRemover} a partir de la tinta del dibujo (ver
+ * esa clase). Si la máscara de la red no sirve, se cae automáticamente al
+ * {@link BackgroundRemover} clásico, de modo que siempre hay resultado.</p>
+ *
+ * <p>Cargar el modelo es caro: usar {@link #shared(Path)} para reutilizar la sesión.</p>
  *
  * @author KineticForge Team
- * @version 2.0.0
+ * @version 3.0.0
  * @since 2026
  */
-public class U2NetBackgroundRemover {
+public class U2NetBackgroundRemover implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(U2NetBackgroundRemover.class);
 
     private static final int INPUT_SIZE = 320;
-    private static final float MASK_THRESHOLD = 0.5f;
+    private static final float[] MEAN = {0.485f, 0.456f, 0.406f};
+    private static final float[] STD = {0.229f, 0.224f, 0.225f};
 
-    /** Radio de erosión para comerse el "aura" de los bordes. */
-    private static final int ERODE_RADIUS = 1;
+    private static U2NetBackgroundRemover sharedInstance;
+    private static Path sharedPath;
 
     private final OrtEnvironment environment;
     private final OrtSession session;
+    private final String inputName;
 
     public U2NetBackgroundRemover(Path modelPath) {
+        this(modelPath, Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+    }
+
+    public U2NetBackgroundRemover(Path modelPath, int threads) {
         try {
             log.info("Cargando modelo U2-Net desde: {}", modelPath);
-
             this.environment = OrtEnvironment.getEnvironment();
             OrtSession.SessionOptions options = new OrtSession.SessionOptions();
             options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
-
-            // Limitar threads para no saturar el CPU
-            int cores = Runtime.getRuntime().availableProcessors();
-            int onnxThreads = Math.max(1, cores / 4); // Solo 1/4 de los núcleos
-            options.setIntraOpNumThreads(onnxThreads);
+            options.setIntraOpNumThreads(Math.max(1, threads));
             options.setInterOpNumThreads(1);
-            log.info("ONNX configurado con {} threads (de {} núcleos)", onnxThreads, cores);
 
             this.session = environment.createSession(modelPath.toString(), options);
-            log.info("Modelo cargado. Outputs: {}", session.getOutputNames().size());
-
+            this.inputName = session.getInputNames().iterator().next();
+            log.info("Modelo cargado ({} threads)", threads);
         } catch (OrtException e) {
             throw new ImageProcessingException(
                     "No se pudo cargar el modelo U2-Net: " + modelPath, e);
         }
     }
 
+    /** Instancia compartida (se recarga solo si cambia el archivo del modelo). */
+    public static synchronized U2NetBackgroundRemover shared(Path modelPath) {
+        if (sharedInstance == null || !modelPath.equals(sharedPath)) {
+            if (sharedInstance != null) {
+                sharedInstance.close();
+            }
+            sharedInstance = new U2NetBackgroundRemover(modelPath);
+            sharedPath = modelPath;
+        }
+        return sharedInstance;
+    }
+
+    /**
+     * Quita el fondo usando la IA + refinado por tinta.
+     *
+     * @param input     imagen original
+     * @param threshold umbral de la máscara IA (0.05-0.95; 0.5 recomendado)
+     */
+    public BufferedImage removeBackground(BufferedImage input, float threshold) {
+        float[][] mask = predictMask(input);
+        BufferedImage result = new PriorGuidedRemover(threshold).removeBackground(input, mask);
+        if (result == null) {
+            log.warn("La máscara IA no fue útil; se usa el quitafondos clásico");
+            result = new BackgroundRemover().removeBackground(input);
+        }
+        return result;
+    }
+
     public BufferedImage removeBackground(BufferedImage input) {
+        return removeBackground(input, 0.5f);
+    }
+
+    /**
+     * Máscara de saliencia a la resolución original, valores 0..1.
+     */
+    public synchronized float[][] predictMask(BufferedImage input) {
         try {
-            int originalW = input.getWidth();
-            int originalH = input.getHeight();
+            int w = input.getWidth();
+            int h = input.getHeight();
 
             float[] inputData = preprocess(input);
             float[] maskData = runInference(inputData);
-            float[][] mask = reshapeMask(maskData, INPUT_SIZE, INPUT_SIZE);
-            float[][] scaledMask = resizeMask(mask, originalW, originalH);
-
-            // Aplicar máscara con alpha BINARIO
-            boolean[][] contentMask = new boolean[originalH][originalW];
-            for (int y = 0; y < originalH; y++) {
-                for (int x = 0; x < originalW; x++) {
-                    contentMask[y][x] = scaledMask[y][x] > MASK_THRESHOLD;
-                }
-            }
-
-            // NUEVO: Erosionar el contenido para comerse el aura
-            if (ERODE_RADIUS > 0) {
-                contentMask = erode(contentMask, ERODE_RADIUS);
-            }
-
-            // Aplicar alpha binario
-            BufferedImage result = new BufferedImage(originalW, originalH, BufferedImage.TYPE_INT_ARGB);
-            for (int y = 0; y < originalH; y++) {
-                for (int x = 0; x < originalW; x++) {
-                    if (contentMask[y][x]) {
-                        int rgb = input.getRGB(x, y);
-                        result.setRGB(x, y, 0xFF000000 | (rgb & 0x00FFFFFF));
-                    } else {
-                        result.setRGB(x, y, 0x00000000);
-                    }
-                }
-            }
-
-            return result;
-
+            normalizeMinMax(maskData);
+            return upscaleBilinear(maskData, INPUT_SIZE, INPUT_SIZE, w, h);
         } catch (OrtException e) {
             throw new ImageProcessingException("Error ejecutando inferencia U2-Net", e);
         }
     }
 
-    /**
-     * Erosiona el contenido (encoge 1px los bordes) para comerse el aura blanca.
-     */
-    private boolean[][] erode(boolean[][] mask, int radius) {
-        int height = mask.length;
-        int width = mask[0].length;
-        boolean[][] result = new boolean[height][width];
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (!mask[y][x]) continue;
-
-                boolean allSet = true;
-                for (int dy = -radius; dy <= radius && allSet; dy++) {
-                    for (int dx = -radius; dx <= radius; dx++) {
-                        int ny = y + dy, nx = x + dx;
-                        if (ny < 0 || ny >= height || nx < 0 || nx >= width || !mask[ny][nx]) {
-                            allSet = false;
-                            break;
-                        }
-                    }
-                }
-                if (allSet) result[y][x] = true;
-            }
-        }
-        return result;
-    }
+    // ============================================================
+    // Preproceso (equivalente al de rembg)
+    // ============================================================
 
     private float[] preprocess(BufferedImage input) {
-        BufferedImage resized = resizeImage(input, INPUT_SIZE, INPUT_SIZE);
-        float[] data = new float[3 * INPUT_SIZE * INPUT_SIZE];
-        float[] mean = {0.485f, 0.456f, 0.406f};
-        float[] std = {0.229f, 0.224f, 0.225f};
+        int w = input.getWidth();
+        int h = input.getHeight();
 
+        // Balance de blancos: el papel gris del escáner confunde a la red
+        int[] px = input.getRGB(0, 0, w, h, null, 0, w);
+        int[] balanced = Paper.whiteBalance(px, Paper.estimate(px));
+
+        int plane = INPUT_SIZE * INPUT_SIZE;
+        float[] rgb = new float[3 * plane];
+        float max = 1f;
+
+        // Reducción por promedio de área (evita perder trazos finos por aliasing)
         for (int y = 0; y < INPUT_SIZE; y++) {
+            int y0 = (int) ((long) y * h / INPUT_SIZE);
+            int y1 = Math.max(y0 + 1, (int) (((long) (y + 1) * h + INPUT_SIZE - 1) / INPUT_SIZE));
+            y1 = Math.min(y1, h);
             for (int x = 0; x < INPUT_SIZE; x++) {
-                int rgb = resized.getRGB(x, y);
-                float r = ((rgb >> 16) & 0xFF) / 255.0f;
-                float g = ((rgb >> 8) & 0xFF) / 255.0f;
-                float b = (rgb & 0xFF) / 255.0f;
+                int x0 = (int) ((long) x * w / INPUT_SIZE);
+                int x1 = Math.max(x0 + 1, (int) (((long) (x + 1) * w + INPUT_SIZE - 1) / INPUT_SIZE));
+                x1 = Math.min(x1, w);
 
+                long sr = 0, sg = 0, sb = 0;
+                int cnt = 0;
+                for (int yy = y0; yy < y1; yy++) {
+                    int base = yy * w;
+                    for (int xx = x0; xx < x1; xx++) {
+                        int c = balanced[base + xx];
+                        sr += (c >> 16) & 0xFF;
+                        sg += (c >> 8) & 0xFF;
+                        sb += c & 0xFF;
+                        cnt++;
+                    }
+                }
                 int idx = y * INPUT_SIZE + x;
-                data[0 * INPUT_SIZE * INPUT_SIZE + idx] = (r - mean[0]) / std[0];
-                data[1 * INPUT_SIZE * INPUT_SIZE + idx] = (g - mean[1]) / std[1];
-                data[2 * INPUT_SIZE * INPUT_SIZE + idx] = (b - mean[2]) / std[2];
+                float r = sr / (float) cnt;
+                float g = sg / (float) cnt;
+                float b = sb / (float) cnt;
+                rgb[idx] = r;
+                rgb[plane + idx] = g;
+                rgb[2 * plane + idx] = b;
+                max = Math.max(max, Math.max(r, Math.max(g, b)));
+            }
+        }
+
+        float[] data = new float[3 * plane];
+        for (int c = 0; c < 3; c++) {
+            for (int i = 0; i < plane; i++) {
+                data[c * plane + i] = (rgb[c * plane + i] / max - MEAN[c]) / STD[c];
             }
         }
         return data;
@@ -155,86 +179,68 @@ public class U2NetBackgroundRemover {
         long[] shape = {1, 3, INPUT_SIZE, INPUT_SIZE};
 
         try (OnnxTensor inputTensor = OnnxTensor.createTensor(
-                environment, FloatBuffer.wrap(inputData), shape)) {
+                environment, FloatBuffer.wrap(inputData), shape);
+             OrtSession.Result result = session.run(
+                     Collections.<String, OnnxTensor>singletonMap(inputName, inputTensor))) {
 
-            Map<String, OnnxTensor> inputs = Collections.singletonMap(
-                    session.getInputNames().iterator().next(), inputTensor);
-
-            try (OrtSession.Result result = session.run(inputs)) {
-                Object output = result.get(0).getValue();
-
-                if (output instanceof float[][][][] out4d) {
-                    return flatten4D(out4d);
-                } else if (output instanceof float[][][] out3d) {
-                    return flatten3D(out3d);
-                } else {
-                    throw new ImageProcessingException("Formato inesperado: " + output.getClass());
-                }
+            Object output = result.get(0).getValue();
+            if (output instanceof float[][][][] out4d) {
+                return flatten(out4d[0][0]);
+            } else if (output instanceof float[][][] out3d) {
+                return flatten(out3d[0]);
             }
+            throw new ImageProcessingException("Formato de salida inesperado: " + output.getClass());
         }
     }
 
-    private float[] flatten4D(float[][][][] data) {
-        return flatten3D(data[0]);
-    }
-
-    private float[] flatten3D(float[][][] data) {
-        float[][] plane = data[0];
+    private float[] flatten(float[][] plane) {
         int h = plane.length;
         int w = plane[0].length;
         float[] flat = new float[h * w];
         for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                flat[y * w + x] = plane[y][x];
-            }
+            System.arraycopy(plane[y], 0, flat, y * w, w);
         }
         return flat;
     }
 
-    private float[][] reshapeMask(float[] data, int h, int w) {
+    private void normalizeMinMax(float[] data) {
         float min = Float.MAX_VALUE, max = -Float.MAX_VALUE;
         for (float v : data) {
             if (v < min) min = v;
             if (v > max) max = v;
         }
         float range = max - min;
+        for (int i = 0; i < data.length; i++) {
+            data[i] = range > 0 ? (data[i] - min) / range : 0f;
+        }
+    }
 
-        float[][] mask = new float[h][w];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                mask[y][x] = range > 0 ? (data[y * w + x] - min) / range : 0;
+    /** Escalado bilineal (el vecino más cercano anterior dejaba bordes en escalera). */
+    private float[][] upscaleBilinear(float[] src, int sw, int sh, int tw, int th) {
+        float[][] out = new float[th][tw];
+        float sx = sw / (float) tw;
+        float sy = sh / (float) th;
+
+        for (int y = 0; y < th; y++) {
+            float fy = Math.max(0f, Math.min(sh - 1f, (y + 0.5f) * sy - 0.5f));
+            int y0 = (int) fy;
+            int y1 = Math.min(sh - 1, y0 + 1);
+            float wy = fy - y0;
+            for (int x = 0; x < tw; x++) {
+                float fx = Math.max(0f, Math.min(sw - 1f, (x + 0.5f) * sx - 0.5f));
+                int x0 = (int) fx;
+                int x1 = Math.min(sw - 1, x0 + 1);
+                float wx = fx - x0;
+
+                float top = src[y0 * sw + x0] * (1 - wx) + src[y0 * sw + x1] * wx;
+                float bot = src[y1 * sw + x0] * (1 - wx) + src[y1 * sw + x1] * wx;
+                out[y][x] = top * (1 - wy) + bot * wy;
             }
         }
-        return mask;
+        return out;
     }
 
-    private float[][] resizeMask(float[][] mask, int targetW, int targetH) {
-        int srcH = mask.length;
-        int srcW = mask[0].length;
-        float[][] result = new float[targetH][targetW];
-        float scaleX = (float) srcW / targetW;
-        float scaleY = (float) srcH / targetH;
-
-        for (int y = 0; y < targetH; y++) {
-            for (int x = 0; x < targetW; x++) {
-                int srcX = Math.min((int) (x * scaleX), srcW - 1);
-                int srcY = Math.min((int) (y * scaleY), srcH - 1);
-                result[y][x] = mask[srcY][srcX];
-            }
-        }
-        return result;
-    }
-
-    private BufferedImage resizeImage(BufferedImage input, int targetW, int targetH) {
-        BufferedImage resized = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB);
-        java.awt.Graphics2D g = resized.createGraphics();
-        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(input, 0, 0, targetW, targetH, null);
-        g.dispose();
-        return resized;
-    }
-
+    @Override
     public void close() {
         try {
             if (session != null) session.close();

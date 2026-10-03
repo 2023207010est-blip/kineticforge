@@ -17,7 +17,7 @@
             fx:controller="io.kineticforge.ui.controller.wizard.Step4ExportController">
 
   <top>
-    <VBox spacing="8" styleClass="step-header">
+    <VBox spacing="8" styleClass="step-header" minHeight="60" maxHeight="60">
       <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
       <Label text="Paso 4: Exportar" styleClass="step-title"/>
       <Label text="Configurá el formato y exportá tu animación"
@@ -26,20 +26,20 @@
   </top>
 
   <center>
-    <HBox spacing="15" alignment="TOP_LEFT" maxHeight="Infinity">
+    <HBox spacing="15" alignment="CENTER" maxWidth="Infinity" maxHeight="Infinity">
       <padding><Insets top="15" right="24" bottom="15" left="24"/></padding>
 
-      <!-- Preview animado -->
+      <!-- Preview animado con restricciones fijas para que no baile -->
       <StackPane fx:id="previewContainer" HBox.hgrow="ALWAYS"
-                 minWidth="400" minHeight="300"
+                 minWidth="400" minHeight="300" maxWidth="Infinity" maxHeight="Infinity"
                  styleClass="preview-pane">
         <ImageView fx:id="animatedPreview"
                    preserveRatio="true"
                    smooth="true"/>
       </StackPane>
 
-      <!-- Panel de configuración -->
-      <VBox spacing="15" styleClass="controls-panel" prefWidth="300">
+      <!-- Panel de configuración estático -->
+      <VBox spacing="15" styleClass="controls-panel" prefWidth="320" minWidth="320" maxWidth="320">
         <padding><Insets top="15" right="15" bottom="15" left="15"/></padding>
 
         <Label text="Configuración" styleClass="section-title"/>

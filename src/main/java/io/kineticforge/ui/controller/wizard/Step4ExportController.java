@@ -32,19 +32,22 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.prefs.Preferences;
 
 /**
- * Controlador del paso 4: exportación.
+ * Controlador mejorado del paso 4: exportación con memoria de formato y ruta.
  *
  * @author KineticForge Team
- * @version 1.1.0
+ * @version 1.3.0
  * @since 2026
  */
 public class Step4ExportController {
 
     private static final Logger log = LoggerFactory.getLogger(Step4ExportController.class);
+    private static final Preferences PREFS = Preferences.userNodeForPackage(Step4ExportController.class);
+    private static final String PREF_LAST_FORMAT = "last_export_format";
+    private static final String PREF_LAST_DIR = "last_export_dir";
 
-    /** Referencia estática para detener la animación al salir del paso. */
     private static Step4ExportController currentInstance;
 
     @FXML private StackPane previewContainer;
@@ -66,21 +69,15 @@ public class Step4ExportController {
     public void init(WizardState state, Runnable onComplete) {
         this.state = state;
         this.onComplete = onComplete;
-
-        // Registrar instancia actual
         currentInstance = this;
 
         setupControls();
         preparePreview();
         startAnimation();
 
-        log.info("Paso 4 inicializado");
+        log.info("Paso 4 (Exportación) inicializado con persistencia");
     }
 
-    /**
-     * Detiene la animación de la instancia actual.
-     * Llamado por WizardController al cambiar de paso.
-     */
     public static void stopInstance() {
         if (currentInstance != null) {
             currentInstance.stop();
@@ -96,16 +93,29 @@ public class Step4ExportController {
             "WebM (VP9)",
             "GIF (FFmpeg)"
         );
-        formatCombo.getSelectionModel().selectFirst();
+
+        // Recuperar último formato usado (memoria de sesión/usuario)
+        String savedFormat = PREFS.get(PREF_LAST_FORMAT, "GIF animado");
+        if (formatCombo.getItems().contains(savedFormat)) {
+            formatCombo.getSelectionModel().select(savedFormat);
+        } else {
+            formatCombo.getSelectionModel().selectFirst();
+        }
+
+        formatCombo.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                PREFS.put(PREF_LAST_FORMAT, newVal);
+            }
+        });
 
         fpsSlider.valueProperty().addListener((obs, old, val) -> {
             int fps = val.intValue();
             fpsLabel.setText("FPS: " + fps);
             restartAnimation(fps);
+            updateSummary();
         });
 
         loopCheck.selectedProperty().addListener((obs, old, val) -> updateSummary());
-
         exportButton.setOnAction(e -> export());
 
         updateSummary();
@@ -127,15 +137,13 @@ public class Step4ExportController {
         if (!previewImages.isEmpty()) {
             animatedPreview.setImage(previewImages.get(0));
         }
-
-        log.debug("Preview preparado: {} frames", previewImages.size());
     }
 
     private void startAnimation() {
         if (previewImages == null || previewImages.isEmpty()) return;
 
         int fps = (int) fpsSlider.getValue();
-        double durationMs = 1000.0 / fps;
+        double durationMs = 1000.0 / Math.max(1, fps);
 
         animationTimeline = new Timeline(
             new KeyFrame(Duration.millis(durationMs), e -> {
@@ -195,14 +203,25 @@ public class Step4ExportController {
                 exporter.getFormatName(),
                 "*." + exporter.getFileExtension()));
 
-        Path defaultDir = Path.of(System.getProperty("user.home"),
-            "kineticforge", "exportaciones");
-        if (defaultDir.toFile().exists()) {
-            chooser.setInitialDirectory(defaultDir.toFile());
+        // Recuperar última ruta guardada o usar por defecto
+        String lastDirStr = PREFS.get(PREF_LAST_DIR, null);
+        if (lastDirStr != null) {
+            File lastDir = new File(lastDirStr);
+            if (lastDir.isDirectory()) {
+                chooser.setInitialDirectory(lastDir);
+            }
+        } else {
+            Path defaultDir = Path.of(System.getProperty("user.home"), "kineticforge", "exportaciones");
+            if (defaultDir.toFile().exists()) {
+                chooser.setInitialDirectory(defaultDir.toFile());
+            }
         }
 
         File target = chooser.showSaveDialog(exportButton.getScene().getWindow());
         if (target == null) return;
+
+        // Guardar la carpeta seleccionada para la próxima vez
+        PREFS.put(PREF_LAST_DIR, target.getParent());
 
         ExportConfig config = ExportConfig.defaults()
             .withFps((int) fpsSlider.getValue())
@@ -221,7 +240,6 @@ public class Step4ExportController {
                 Platform.runLater(() -> {
                     statusLabel.setText("✅ Exportado: " + output.getFileName());
                     exportButton.setDisable(false);
-                    // FIX: pasar owner para que el diálogo no se vaya al fondo
                     Dialogs.info(ownerWindow,
                         "Exportación completa",
                         "Archivo guardado en:\n" + output);
@@ -251,10 +269,6 @@ public class Step4ExportController {
         };
     }
 
-    /**
-     * Detiene la animación del preview.
-     * Llamado por WizardController al cambiar de paso.
-     */
     public void stop() {
         if (animationTimeline != null) {
             animationTimeline.stop();

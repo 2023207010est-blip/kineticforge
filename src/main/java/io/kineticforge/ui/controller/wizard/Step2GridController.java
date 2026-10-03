@@ -1,11 +1,13 @@
 package io.kineticforge.ui.controller.wizard;
 
+import io.kineticforge.core.grid.CellCalculator;
 import io.kineticforge.io.MetadataLoader;
 import io.kineticforge.model.GridMetadata;
 import io.kineticforge.model.GridPreset;
 import io.kineticforge.model.GridSpec;
 import io.kineticforge.model.PageOrientation;
 import io.kineticforge.model.PageSize;
+import io.kineticforge.model.SheetScan;
 import io.kineticforge.ui.model.WizardState;
 import io.kineticforge.ui.util.Dialogs;
 import io.kineticforge.ui.util.ImageConverter;
@@ -17,37 +19,39 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.Slider;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.image.Image;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.Rectangle;
-import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Controlador del paso 2: verificar/definir la grilla.
- *
- * <p>Usa el {@link MetadataLoader} para leer las medidas EXACTAS de la
- * plantilla (archivo .json asociado). Si no hay metadatos, permite al
- * usuario configurar manualmente el preset.</p>
+ * Controlador del paso 2: Carga automática por plantilla oficial (.json) o selección manual estricta.
  *
  * @author KineticForge Team
- * @version 2.0.0
+ * @version 3.1.0
  * @since 2026
  */
 public class Step2GridController {
 
     private static final Logger log = LoggerFactory.getLogger(Step2GridController.class);
 
+    private static final int PREVIEW_MAX_SIDE = 1600;
+
     @FXML private StackPane previewContainer;
     @FXML private Canvas previewCanvas;
+    @FXML private ListView<SheetScan> sheetList;
+    @FXML private ToggleButton gridModeToggle;
+    @FXML private ToggleButton singleModeToggle;
+    @FXML private VBox gridControls;
     @FXML private ComboBox<GridPreset> presetCombo;
     @FXML private ToggleButton portraitToggle;
     @FXML private ToggleButton landscapeToggle;
@@ -55,11 +59,14 @@ public class Step2GridController {
     @FXML private Label marginLabel;
     @FXML private CheckBox guideDotCheck;
     @FXML private Button detectButton;
+    @FXML private Button applyAllButton;
     @FXML private Label statusLabel;
 
     private WizardState state;
     private Runnable onComplete;
     private Image previewImage;
+    private SheetScan currentSheet;
+    private boolean updatingControls;
     private final MetadataLoader metadataLoader = new MetadataLoader();
 
     public void init(WizardState state, Runnable onComplete) {
@@ -67,11 +74,32 @@ public class Step2GridController {
         this.onComplete = onComplete;
 
         setupControls();
-        loadPreview();
-        tryAutoLoadMetadata();
+        setupCanvas();
 
-        log.info("Paso 2 inicializado");
+        // Intentar cargar automáticamente el .json de todas las hojas
+        for (SheetScan sheet : state.getSheets()) {
+            if (!sheet.hasGrid()) {
+                tryAutoLoadMetadata(sheet);
+            }
+        }
+
+        sheetList.setItems(state.getSheets());
+        sheetList.getSelectionModel().selectedItemProperty()
+            .addListener((obs, old, sel) -> onSheetSelected(sel));
+
+        if (state.getSheets().isEmpty()) {
+            statusLabel.setText("No hay hojas cargadas.");
+            detectButton.setDisable(true);
+            applyAllButton.setDisable(true);
+        } else {
+            sheetList.getSelectionModel().select(0);
+        }
+        updateGridComplete();
+
+        log.info("Paso 2 inicializado automáticamente ({} hojas)", state.getSheets().size());
     }
+
+
 
     private void setupControls() {
         presetCombo.getItems().setAll(GridPreset.values());
@@ -86,158 +114,169 @@ public class Step2GridController {
         });
 
         marginSlider.valueProperty().addListener((obs, o, n) ->
-                marginLabel.setText(String.format("Margen: %.0f mm", n.doubleValue())));
+            marginLabel.setText(String.format("Margen fijo plantilla: %.0f mm", n.doubleValue())));
 
-        detectButton.setText("✓ Verificar grilla");
-        detectButton.setOnAction(e -> verifyGrid());
+        singleModeToggle.selectedProperty().addListener((obs, o, single) ->
+            gridControls.setDisable(single));
+
+        detectButton.setOnAction(e -> applyToCurrent());
+        applyAllButton.setOnAction(e -> applyToAll());
     }
 
-    private void loadPreview() {
-        BufferedImage image = state.getOriginalImage();
-        if (image == null) {
-            statusLabel.setText("No hay imagen cargada.");
-            detectButton.setDisable(true);
-            return;
-        }
-
-        previewImage = ImageConverter.toFxImage(image);
+    private void setupCanvas() {
         previewCanvas.widthProperty().bind(previewContainer.widthProperty());
         previewCanvas.heightProperty().bind(previewContainer.heightProperty());
-        previewCanvas.widthProperty().addListener((o, ov, nv) -> redrawIfNeeded());
-        previewCanvas.heightProperty().addListener((o, ov, nv) -> redrawIfNeeded());
-
+        previewCanvas.widthProperty().addListener((o, ov, nv) -> redraw());
+        previewCanvas.heightProperty().addListener((o, ov, nv) -> redraw());
         previewContainer.sceneProperty().addListener((obs, oldS, newS) -> {
-            if (newS != null) Platform.runLater(this::redrawIfNeeded);
+            if (newS != null) Platform.runLater(this::redraw);
         });
     }
 
-    /**
-     * Si existe un archivo .json asociado al escaneo, lo carga automáticamente.
-     */
-    private void tryAutoLoadMetadata() {
-        try {
-            Optional<GridMetadata> meta = metadataLoader.loadFor(state.getSourceFile());
-
-            if (meta.isEmpty()) {
-                log.info("Sin metadatos. Usuario debe elegir preset manualmente.");
-                statusLabel.setText("⚠ No se encontró archivo .json. Elegí el preset manualmente.");
-                return;
-            }
-
-            GridMetadata m = meta.get();
-            state.setMetadata(m);
-            state.setGridSpec(m.toGridSpec());
-
-            // Actualizar UI con los valores del metadata
-            presetCombo.getSelectionModel().select(GridPreset.valueOf(m.preset()));
-            if ("PORTRAIT".equals(m.orientation())) {
-                portraitToggle.setSelected(true);
-            } else {
-                landscapeToggle.setSelected(true);
-            }
-            marginSlider.setValue(m.marginMm());
-            guideDotCheck.setSelected(m.includeGuideDot());
-
-            // Calcular celdas
-            List<Rectangle> cells = computeCellsFromMetadata(m,
-                    state.getOriginalImage().getWidth(),
-                    state.getOriginalImage().getHeight());
-            state.setCells(cells);
-            state.setGridComplete(true);
-
-            statusLabel.setText(String.format("✅ %d celdas cargadas del archivo .json", cells.size()));
-            redrawIfNeeded();
-
-        } catch (Exception e) {
-            log.error("Error cargando metadatos", e);
-            statusLabel.setText("⚠ Error al leer .json: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Verifica la grilla con los parámetros actuales del usuario.
-     */
-    private void verifyGrid() {
-        BufferedImage image = state.getOriginalImage();
-        if (image == null) {
-            Dialogs.warn("Sin imagen", "Cargá una imagen primero.");
+    private void onSheetSelected(SheetScan sheet) {
+        currentSheet = sheet;
+        if (sheet == null) {
+            previewImage = null;
+            redraw();
             return;
         }
 
+        previewImage = ImageConverter.toFxImage(
+            ImageConverter.scaleToFit(sheet.getImage(), PREVIEW_MAX_SIDE));
+        syncControlsFromSheet(sheet);
+        statusLabel.setText(describeStatus(sheet));
+        redraw();
+    }
+
+    private void syncControlsFromSheet(SheetScan sheet) {
+        updatingControls = true;
         try {
-            GridSpec spec = buildGridSpec();
-            state.setGridSpec(spec);
+            if (sheet.isWholeImage()) {
+                singleModeToggle.setSelected(true);
+                gridControls.setDisable(true);
+            } else {
+                gridModeToggle.setSelected(true);
+                GridSpec spec = sheet.getSpec();
+                if (spec != null) {
+                    presetCombo.getSelectionModel().select(spec.preset());
+                    if (spec.orientation() == PageOrientation.PORTRAIT) {
+                        portraitToggle.setSelected(true);
+                    } else {
+                        landscapeToggle.setSelected(true);
+                    }
+                    marginSlider.setValue(spec.marginMm());
+                    guideDotCheck.setSelected(spec.includeGuideDot());
+                }
 
-            // Calcular celdas a partir de las medidas exactas
-            List<Rectangle> cells = computeCells(spec,
-                    image.getWidth(), image.getHeight());
+                // Si la hoja tiene metadatos del .json oficial, bloqueamos los controles manuales
+                // para garantizar que nadie altere las medidas de la plantilla.
+                boolean hasJsonMeta = (sheet.getMetadata() != null);
+                gridControls.setDisable(hasJsonMeta);
+            }
+        } finally {
+            updatingControls = false;
+        }
+    }
 
-            state.setCells(cells);
-            state.setGridComplete(true);
+    private String describeStatus(SheetScan sheet) {
+        if (!sheet.hasGrid()) {
+            return "⚠ Esta hoja no tiene grilla asociada.";
+        }
+        if (sheet.isWholeImage()) {
+            return "✅ Imagen suelta (1 frame completo).";
+        }
+        if (sheet.getMetadata() != null) {
+            return "✅ Grilla cargada automáticamente desde la plantilla oficial (.json). Medidas protegidas.";
+        }
+        return "✅ " + sheet.frameCount() + " celdas configuradas manualmente.";
+    }
 
-            statusLabel.setText(String.format("✅ %d celdas calculadas (medidas exactas)", cells.size()));
-            redrawIfNeeded();
-
+    private void tryAutoLoadMetadata(SheetScan sheet) {
+        try {
+            Optional<GridMetadata> meta = metadataLoader.loadFor(sheet.getPath());
+            if (meta.isEmpty()) {
+                return;
+            }
+            GridMetadata m = meta.get();
+            GridSpec spec = m.toGridSpec();
+            List<Rectangle> cells = CellCalculator.compute(spec,
+                sheet.getImage().getWidth(), sheet.getImage().getHeight());
+            sheet.setMetadata(m);
+            sheet.setGrid(spec, cells);
+            log.info("Grilla de {} cargada exitosamente del .json oficial ({} celdas)",
+                sheet.getFileName(), cells.size());
         } catch (Exception e) {
-            log.error("Error verificando grilla", e);
+            log.warn("No se pudo leer el .json de {}: {}", sheet.getFileName(), e.getMessage());
+        }
+    }
+
+    private void applyToCurrent() {
+        if (currentSheet == null) return;
+        try {
+            applySettings(currentSheet);
+            sheetList.refresh();
+            statusLabel.setText(describeStatus(currentSheet));
+            updateGridComplete();
+            redraw();
+        } catch (Exception e) {
+            log.error("Error aplicando grilla", e);
             statusLabel.setText("❌ Error: " + e.getMessage());
             Dialogs.error("Error de verificación", e.getMessage());
         }
     }
 
-    /**
-     * Calcula las celdas a partir de las medidas EXACTAS del GridSpec.
-     *
-     * <p>Convertimos mm a píxeles usando el DPI implícito del escaneo
-     * (calculado como anchoPx / anchoMm).</p>
-     */
-    private List<Rectangle> computeCells(GridSpec spec, int imageWidth, int imageHeight) {
-        // DPI efectivo del escaneo (asumiendo que el escaneo coincide con la página completa)
-        double pxPerMmX = imageWidth / spec.pageWidthMm();
-        double pxPerMmY = imageHeight / spec.pageHeightMm();
-
-        log.debug("Escala del escaneo: {} px/mm X, {} px/mm Y", pxPerMmX, pxPerMmY);
-
-        double marginPx = spec.marginMm() * pxPerMmX;
-        double cellWpx = spec.cellWidthMm() * pxPerMmX;
-        double cellHpx = spec.cellHeightMm() * pxPerMmY;
-        double gutterPx = spec.gutterMm() * pxPerMmX;
-
-        List<Rectangle> cells = new ArrayList<>(spec.totalCells());
-
-        for (int row = 0; row < spec.rows(); row++) {
-            for (int col = 0; col < spec.columns(); col++) {
-                int x = (int) Math.round(marginPx + col * (cellWpx + gutterPx));
-                int y = (int) Math.round(marginPx + row * (cellHpx + gutterPx));
-                int w = (int) Math.round(cellWpx);
-                int h = (int) Math.round(cellHpx);
-
-                // Asegurar que no se salga de la imagen
-                x = Math.max(0, Math.min(x, imageWidth - 1));
-                y = Math.max(0, Math.min(y, imageHeight - 1));
-                w = Math.min(w, imageWidth - x);
-                h = Math.min(h, imageHeight - y);
-
-                cells.add(new Rectangle(x, y, w, h));
+    private void applyToAll() {
+        try {
+            for (SheetScan sheet : state.getSheets()) {
+                applySettings(sheet);
             }
+            sheetList.refresh();
+            if (currentSheet != null) {
+                statusLabel.setText(describeStatus(currentSheet));
+            }
+            updateGridComplete();
+            redraw();
+        } catch (Exception e) {
+            log.error("Error aplicando grilla", e);
+            Dialogs.error("Error de verificación", e.getMessage());
         }
-
-        return cells;
     }
 
-    private List<Rectangle> computeCellsFromMetadata(GridMetadata m,
-                                                      int imageWidth, int imageHeight) {
-        return computeCells(m.toGridSpec(), imageWidth, imageHeight);
+    private void applySettings(SheetScan sheet) {
+        int w = sheet.getImage().getWidth();
+        int h = sheet.getImage().getHeight();
+
+        if (singleModeToggle.isSelected()) {
+            sheet.setWholeImage(CellCalculator.wholeImage(w, h));
+        } else {
+            GridSpec spec = buildGridSpec();
+            sheet.setGrid(spec, CellCalculator.compute(spec, w, h));
+        }
+        state.invalidateProcessing();
     }
 
-    private void redrawIfNeeded() {
-        if (previewImage == null) return;
-        drawPreview();
+    private void updateGridComplete() {
+        boolean complete = state.allSheetsHaveGrid();
+        state.setGridComplete(complete);
     }
 
-    private void drawPreview() {
-        if (previewImage == null) return;
+    private GridSpec buildGridSpec() {
+        GridPreset preset = presetCombo.getSelectionModel().getSelectedItem();
+        PageOrientation orientation = portraitToggle.isSelected()
+            ? PageOrientation.PORTRAIT
+            : PageOrientation.LANDSCAPE;
 
+        return GridSpec.builder()
+            .preset(preset)
+            .orientation(orientation)
+            .pageSize(PageSize.A4)
+            .marginMm(marginSlider.getValue())
+            .gutterMm(2.0)
+            .includeGuideDot(guideDotCheck.isSelected())
+            .build();
+    }
+
+    private void redraw() {
         double w = previewCanvas.getWidth();
         double h = previewCanvas.getHeight();
         if (w <= 0 || h <= 0) return;
@@ -247,9 +286,12 @@ public class Step2GridController {
         gc.setFill(Color.WHITE);
         gc.fillRect(0, 0, w, h);
 
-        double imgW = previewImage.getWidth();
-        double imgH = previewImage.getHeight();
+        if (previewImage == null || currentSheet == null) return;
+
+        double imgW = currentSheet.getImage().getWidth();
+        double imgH = currentSheet.getImage().getHeight();
         double scale = Math.min((w - 40) / imgW, (h - 40) / imgH);
+        if (scale <= 0) return;
 
         double drawW = imgW * scale;
         double drawH = imgH * scale;
@@ -258,34 +300,14 @@ public class Step2GridController {
 
         gc.drawImage(previewImage, offsetX, offsetY, drawW, drawH);
 
-        List<Rectangle> cells = state.getCells();
+        List<Rectangle> cells = currentSheet.getCells();
         if (cells != null && !cells.isEmpty()) {
             gc.setStroke(Color.rgb(45, 127, 249, 0.9));
             gc.setLineWidth(2);
-
             for (Rectangle cell : cells) {
-                double x = offsetX + cell.x * scale;
-                double y = offsetY + cell.y * scale;
-                double cw = cell.width * scale;
-                double ch = cell.height * scale;
-                gc.strokeRect(x, y, cw, ch);
+                gc.strokeRect(offsetX + cell.x * scale, offsetY + cell.y * scale,
+                    cell.width * scale, cell.height * scale);
             }
         }
-    }
-
-    private GridSpec buildGridSpec() {
-        GridPreset preset = presetCombo.getSelectionModel().getSelectedItem();
-        PageOrientation orientation = portraitToggle.isSelected()
-                ? PageOrientation.PORTRAIT
-                : PageOrientation.LANDSCAPE;
-
-        return GridSpec.builder()
-                .preset(preset)
-                .orientation(orientation)
-                .pageSize(PageSize.A4)
-                .marginMm(marginSlider.getValue())
-                .gutterMm(2.0)
-                .includeGuideDot(guideDotCheck.isSelected())
-                .build();
     }
 }

@@ -1,35 +1,30 @@
 package io.kineticforge.ui.model;
 
 import io.kineticforge.model.ExportConfig;
-import io.kineticforge.model.GridMetadata;
-import io.kineticforge.model.GridSpec;
+import io.kineticforge.model.SheetScan;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 
-import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
-import java.nio.file.Path;
 import java.util.List;
 
 /**
  * Estado compartido entre los pasos del wizard.
  *
- * <p>Ahora usa {@link GridMetadata} (medidas exactas del PDF) en vez
- * de {@code GridDetectionResult} (auto-detección de líneas).</p>
+ * <p>Una animación puede estar formada por VARIAS hojas ({@link SheetScan}):
+ * sus frames se concatenan, en el orden de la lista, en una sola progresión.</p>
  *
  * @author KineticForge Team
- * @version 2.0.0
+ * @version 3.0.0
  * @since 2026
  */
 public class WizardState {
 
-    private final ObjectProperty<Path> sourceFile = new SimpleObjectProperty<>();
-    private final ObjectProperty<BufferedImage> originalImage = new SimpleObjectProperty<>();
-    private final ObjectProperty<GridSpec> gridSpec = new SimpleObjectProperty<>();
-    private final ObjectProperty<GridMetadata> metadata = new SimpleObjectProperty<>();
-    private final ObjectProperty<List<Rectangle>> cells = new SimpleObjectProperty<>();
+    private final ObservableList<SheetScan> sheets = FXCollections.observableArrayList();
     private final ObjectProperty<List<BufferedImage>> processedFrames = new SimpleObjectProperty<>();
     private final ObjectProperty<ExportConfig> exportConfig =
             new SimpleObjectProperty<>(ExportConfig.defaults());
@@ -38,27 +33,38 @@ public class WizardState {
     private final BooleanProperty gridComplete = new SimpleBooleanProperty(false);
     private final BooleanProperty processComplete = new SimpleBooleanProperty(false);
 
-    // --- Getters y setters ---
+    // --- Hojas ---
 
-    public Path getSourceFile() { return sourceFile.get(); }
-    public void setSourceFile(Path p) { sourceFile.set(p); }
-    public ObjectProperty<Path> sourceFileProperty() { return sourceFile; }
+    public ObservableList<SheetScan> getSheets() { return sheets; }
 
-    public BufferedImage getOriginalImage() { return originalImage.get(); }
-    public void setOriginalImage(BufferedImage img) { originalImage.set(img); }
-    public ObjectProperty<BufferedImage> originalImageProperty() { return originalImage; }
+    /** @return true si hay al menos una hoja y todas tienen grilla definida. */
+    public boolean allSheetsHaveGrid() {
+        if (sheets.isEmpty()) return false;
+        for (SheetScan sheet : sheets) {
+            if (!sheet.hasGrid()) return false;
+        }
+        return true;
+    }
 
-    public GridSpec getGridSpec() { return gridSpec.get(); }
-    public void setGridSpec(GridSpec spec) { gridSpec.set(spec); }
-    public ObjectProperty<GridSpec> gridSpecProperty() { return gridSpec; }
+    /** @return cantidad total de celdas de todas las hojas. */
+    public int totalCells() {
+        int total = 0;
+        for (SheetScan sheet : sheets) {
+            total += sheet.frameCount();
+        }
+        return total;
+    }
 
-    public GridMetadata getMetadata() { return metadata.get(); }
-    public void setMetadata(GridMetadata m) { metadata.set(m); }
-    public ObjectProperty<GridMetadata> metadataProperty() { return metadata; }
+    /**
+     * Descarta el resultado del procesamiento (se llama cuando cambian las
+     * hojas, su orden o su grilla).
+     */
+    public void invalidateProcessing() {
+        processedFrames.set(null);
+        processComplete.set(false);
+    }
 
-    public List<Rectangle> getCells() { return cells.get(); }
-    public void setCells(List<Rectangle> c) { cells.set(c); }
-    public ObjectProperty<List<Rectangle>> cellsProperty() { return cells; }
+    // --- Resultado y exportación ---
 
     public List<BufferedImage> getProcessedFrames() { return processedFrames.get(); }
     public void setProcessedFrames(List<BufferedImage> frames) { processedFrames.set(frames); }
@@ -67,6 +73,8 @@ public class WizardState {
     public ExportConfig getExportConfig() { return exportConfig.get(); }
     public void setExportConfig(ExportConfig c) { exportConfig.set(c); }
     public ObjectProperty<ExportConfig> exportConfigProperty() { return exportConfig; }
+
+    // --- Banderas de avance ---
 
     public boolean isLoadingComplete() { return loadComplete.get(); }
     public void setLoadComplete(boolean b) { loadComplete.set(b); }
@@ -81,11 +89,7 @@ public class WizardState {
     public BooleanProperty processCompleteProperty() { return processComplete; }
 
     public void reset() {
-        sourceFile.set(null);
-        originalImage.set(null);
-        gridSpec.set(null);
-        metadata.set(null);
-        cells.set(null);
+        sheets.clear();
         processedFrames.set(null);
         exportConfig.set(ExportConfig.defaults());
         loadComplete.set(false);

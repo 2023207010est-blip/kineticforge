@@ -3,6 +3,7 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
@@ -16,26 +17,40 @@
     <top>
         <VBox spacing="8" styleClass="step-header">
             <padding><Insets top="20" right="30" bottom="10" left="30"/></padding>
-            <Label text="Paso 1: Cargar imagen" styleClass="step-title"/>
-            <Label text="Arrastrá tu hoja A4 escaneada o elegí un archivo"
-                   styleClass="step-subtitle"/>
+            <Label text="Paso 1: Cargar hojas" styleClass="step-title"/>
+            <Label text="Agregá una o varias hojas escaneadas. Sus frames se unen en una sola animación, en el orden de la lista."
+                   styleClass="step-subtitle" wrapText="true"/>
         </VBox>
     </top>
 
     <center>
-        <StackPane fx:id="dropZone" styleClass="drop-zone">
-            <padding><Insets top="30" right="30" bottom="30" left="30"/></padding>
+        <HBox spacing="15">
+            <padding><Insets top="15" right="30" bottom="10" left="30"/></padding>
 
-            <VBox alignment="CENTER" spacing="10">
-                <Label fx:id="dropLabel"
-                       text="📁 Arrastrá tu imagen acá&#10;o usá el botón de abajo"
-                       styleClass="drop-label"/>
-                <ImageView fx:id="previewImage"
-                           preserveRatio="true"
-                           fitWidth="400"
-                           fitHeight="500"/>
+            <!-- Lista de hojas -->
+            <VBox spacing="8" prefWidth="330" minWidth="280">
+                <Label text="Hojas (orden de la animación)" styleClass="section-title"/>
+                <ListView fx:id="sheetList" VBox.vgrow="ALWAYS"/>
+                <HBox spacing="8">
+                    <Button fx:id="addButton" text="＋ Agregar…" styleClass="button-outlined"/>
+                    <Button fx:id="upButton" text="▲" styleClass="button-outlined"/>
+                    <Button fx:id="downButton" text="▼" styleClass="button-outlined"/>
+                    <Button fx:id="removeButton" text="🗑 Quitar" styleClass="button-outlined"/>
+                </HBox>
             </VBox>
-        </StackPane>
+
+            <!-- Zona de arrastre / vista previa -->
+            <StackPane fx:id="dropZone" styleClass="drop-zone" HBox.hgrow="ALWAYS">
+                <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+                <VBox alignment="CENTER" spacing="10">
+                    <Label fx:id="dropLabel"
+                           text="📁 Arrastrá tus imágenes acá&#10;(podés soltar varias a la vez)"
+                           styleClass="drop-label"/>
+                    <ImageView fx:id="previewImage" preserveRatio="true"
+                               fitWidth="420" fitHeight="430"/>
+                </VBox>
+            </StackPane>
+        </HBox>
     </center>
 
     <bottom>
@@ -43,7 +58,6 @@
             <padding><Insets top="10" right="30" bottom="20" left="30"/></padding>
             <Label fx:id="fileInfoLabel" text="" styleClass="file-info"/>
             <HBox spacing="15" alignment="CENTER_RIGHT">
-                <Button fx:id="chooseButton" text="Elegir archivo…" styleClass="button-outlined"/>
                 <Button fx:id="nextButton" text="Siguiente →" styleClass="button-primary"/>
             </HBox>
         </VBox>

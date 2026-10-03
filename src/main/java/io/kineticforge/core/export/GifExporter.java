@@ -19,7 +19,7 @@ import java.util.Objects;
  * Usa cuantización NeuQuant para mejor calidad de imagen.
  *
  * @author KineticForge Team
- * @version 3.0.0
+ * @version 4.0.0
  * @since 2026
  */
 public class GifExporter implements Exporter {
@@ -81,11 +81,15 @@ public class GifExporter implements Exporter {
             encoder.setRepeat(config.loop() ? 0 : 1);
             encoder.setDelay(config.getFrameDelayMs());
             encoder.setDispose(2);
-            encoder.setTransparent(new java.awt.Color(0xFF, 0x00, 0xFF));
-            encoder.setQuality(10);
+
+            // Color "transparente" que no se parezca a nada del dibujo: si el
+            // dibujo tiene rosas/magentas, el cuantizador los volvería transparentes.
+            int key = chooseKeyColor(frames);
+            encoder.setTransparent(new java.awt.Color(key));
+            encoder.setQuality(qualityFor(frames.size(), width, height));
 
             for (BufferedImage frame : frames) {
-                BufferedImage prepared = prepareFrame(frame);
+                BufferedImage prepared = prepareFrame(frame, key);
                 encoder.addFrame(prepared);
             }
 
@@ -97,25 +101,75 @@ public class GifExporter implements Exporter {
         }
     }
 
-    private BufferedImage prepareFrame(BufferedImage frame) {
-        int width = frame.getWidth();
-        int height = frame.getHeight();
+    /**
+     * Calidad del cuantizador NeuQuant (1 = mejor, 30 = más rápido).
+     * Con animaciones chicas se usa la mejor; con muchas/grandes se baja para no tardar minutos.
+     */
+    static int qualityFor(int frameCount, int width, int height) {
+        long totalPixels = (long) frameCount * width * height;
+        if (totalPixels <= 12_000_000L) return 1;
+        if (totalPixels <= 40_000_000L) return 3;
+        return 8;
+    }
 
-        BufferedImage prepared = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+    private static final int[] KEY_CANDIDATES = {
+            0xFF00FF, 0x00FF00, 0x00FFFF, 0xFFFF00, 0xFF0000, 0x0000FF
+    };
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int argb = frame.getRGB(x, y);
-                int alpha = (argb >> 24) & 0xFF;
+    /**
+     * Elige, de una lista de colores chillones, el que esté más lejos de todos
+     * los colores opacos que aparecen en los frames.
+     */
+    static int chooseKeyColor(List<BufferedImage> frames) {
+        long[] minDist = new long[KEY_CANDIDATES.length];
+        java.util.Arrays.fill(minDist, Long.MAX_VALUE);
 
-                if (alpha < 128) {
-                    prepared.setRGB(x, y, 0xFF00FF);
-                } else {
-                    prepared.setRGB(x, y, argb & 0x00FFFFFF);
+        for (BufferedImage frame : frames) {
+            int w = frame.getWidth();
+            int h = frame.getHeight();
+            int[] px = frame.getRGB(0, 0, w, h, null, 0, w);
+            int stride = Math.max(1, px.length / 20_000);
+            for (int i = 0; i < px.length; i += stride) {
+                int argb = px[i];
+                if (((argb >> 24) & 0xFF) < 128) continue;
+                int r = (argb >> 16) & 0xFF;
+                int g = (argb >> 8) & 0xFF;
+                int b = argb & 0xFF;
+                for (int k = 0; k < KEY_CANDIDATES.length; k++) {
+                    int c = KEY_CANDIDATES[k];
+                    long dr = r - ((c >> 16) & 0xFF);
+                    long dg = g - ((c >> 8) & 0xFF);
+                    long db = b - (c & 0xFF);
+                    long d = dr * dr + dg * dg + db * db;
+                    if (d < minDist[k]) minDist[k] = d;
                 }
             }
         }
 
+        int best = 0;
+        for (int k = 1; k < KEY_CANDIDATES.length; k++) {
+            if (minDist[k] > minDist[best]) best = k;
+        }
+        return KEY_CANDIDATES[best];
+    }
+
+    private BufferedImage prepareFrame(BufferedImage frame, int keyColor) {
+        int width = frame.getWidth();
+        int height = frame.getHeight();
+
+        int[] src = frame.getRGB(0, 0, width, height, null, 0, width);
+        int[] dst = new int[src.length];
+
+        for (int i = 0; i < src.length; i++) {
+            int argb = src[i];
+            int alpha = (argb >> 24) & 0xFF;
+            // El color de los píxeles de borde ya viene descontaminado (tinta pura,
+            // sin mezcla de blanco), así que un corte de alpha binario no deja aura.
+            dst[i] = alpha < 128 ? keyColor : (argb & 0x00FFFFFF);
+        }
+
+        BufferedImage prepared = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        prepared.setRGB(0, 0, width, height, dst, 0, width);
         return prepared;
     }
 }

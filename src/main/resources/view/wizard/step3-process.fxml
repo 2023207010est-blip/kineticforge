@@ -2,6 +2,8 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.control.ScrollPane?>
@@ -19,7 +21,7 @@
     <VBox spacing="8" styleClass="step-header">
       <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
       <Label text="Paso 3: Procesar frames" styleClass="step-title"/>
-      <Label text="Extrae, quita el fondo y alinea cada frame automáticamente"
+      <Label text="Une los frames de todas las hojas, quita el fondo y alinea cada frame"
              styleClass="step-subtitle"/>
     </VBox>
   </top>
@@ -37,6 +39,12 @@
   <bottom>
     <VBox spacing="10" styleClass="process-controls">
       <padding><Insets top="12" right="24" bottom="16" left="24"/></padding>
+
+      <HBox spacing="12" alignment="CENTER_LEFT">
+        <Label text="Quitafondos:"/>
+        <ComboBox fx:id="methodCombo" prefWidth="300"/>
+        <CheckBox fx:id="skipEmptyCheck" text="Omitir celdas vacías" selected="true"/>
+      </HBox>
 
       <Label fx:id="progressLabel" text="Presioná «Procesar» para comenzar."
              styleClass="file-info"/>

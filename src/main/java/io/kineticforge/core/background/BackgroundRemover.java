@@ -3,31 +3,28 @@ package io.kineticforge.core.background;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.List;
 import java.util.Objects;
 
 /**
- * Elimina el fondo blanco de un frame preservando detalles internos.
+ * Elimina el fondo de papel de un frame preservando los detalles internos
+ * (por ejemplo, el blanco de un ojo dibujado).
  *
- * <p>Pipeline de 7 etapas:</p>
+ * <p>Pipeline:</p>
  * <ol>
- *     <li>Filtro de mediana (reduce ruido puntual)</li>
- *     <li>Canny edge detection</li>
- *     <li>Dilatación + cierre morfológico</li>
- *     <li>Flood fill desde bordes</li>
- *     <li>Expansión del fondo</li>
- *     <li>Filtro de componentes (elimina ruido)</li>
- *     <li>Eliminación de líneas largas (líneas del template)</li>
+ *     <li>Estimación del color del papel y balance de blancos</li>
+ *     <li>Filtro de mediana 3×3</li>
+ *     <li>Canny + dilatación + cierre morfológico (sella huecos del contorno)</li>
+ *     <li>Flood fill desde los bordes</li>
+ *     <li>Expansión del fondo hacia el papel residual</li>
+ *     <li>Filtro de componentes pequeños y de líneas largas (restos de la plantilla)</li>
+ *     <li><b>Matte de bordes con descontaminación de color</b> (sin aura blanca)</li>
  * </ol>
  *
+ * <p>Es seguro usar una misma instancia desde varios hilos.</p>
+ *
  * @author KineticForge Team
- * @version 9.0.0
+ * @version 10.0.0
  * @since 2026
  */
 public class BackgroundRemover {
@@ -42,7 +39,7 @@ public class BackgroundRemover {
     private static final int DILATE_RADIUS = 4;
     private static final int CLOSE_RADIUS = 3;
 
-    // Umbrales
+    // Umbrales (sobre luminancia con el papel normalizado a 255)
     private static final int SAFE_CONTENT_LUMINANCE = 200;
     private static final int NEAR_WHITE_LUMINANCE = 240;
 
@@ -54,12 +51,8 @@ public class BackgroundRemover {
     private static final double MAX_ASPECT_RATIO = 5.0;
     private static final double MAX_LINE_AREA_RATIO = 0.02;
 
-    // Radio de mediana
-    private static final int MEDIAN_RADIUS = 1;
-
-    // Umbral de alpha para bordes suaves
-    private static final int ANTIALIAS_ALPHA_MIN = 30;
-    private static final int ANTIALIAS_ALPHA_MAX = 255;
+    /** Ancho (px) de la franja de borde donde se calcula el alpha suave. */
+    private static final int EDGE_BAND = 4;
 
     private final FloodFillStrategy strategy;
     private final boolean applyAntialiasing;
@@ -77,395 +70,157 @@ public class BackgroundRemover {
     public BufferedImage removeBackground(BufferedImage frame) {
         Objects.requireNonNull(frame, "frame no puede ser nulo");
 
-        int width = frame.getWidth();
-        int height = frame.getHeight();
+        int w = frame.getWidth();
+        int h = frame.getHeight();
+        log.debug("Eliminando fondo de frame {}x{}", w, h);
 
-        log.debug("Eliminando fondo de frame {}x{}", width, height);
+        // 1. Papel + balance de blancos
+        int[] px = frame.getRGB(0, 0, w, h, null, 0, w);
+        int[] paper = Paper.estimate(px);
+        int[] balanced = Paper.whiteBalance(px, paper);
+        int[] gray = luminance(balanced);
 
-        // 1. Luminancia
-        int[][] gray = toLuminanceMatrix(frame);
+        // 2. Mediana 3x3
+        int[] filtered = median3x3(gray, w, h);
 
-        // 2. Filtro de mediana (reduce ruido puntual)
-        int[][] filtered = medianFilter(gray, MEDIAN_RADIUS);
+        // 3. Canny → dilatar → cerrar
+        boolean[] edges = cannyEdges(filtered, w, h);
+        boolean[] blocked = Morphology.close(
+                Morphology.dilate(edges, w, h, DILATE_RADIUS), w, h, CLOSE_RADIUS);
 
-        // 3. Canny
-        boolean[][] edges = canny.detect(filtered, CANNY_LOW, CANNY_HIGH);
-
-        // 4. Dilatar + cerrar
-        boolean[][] dilatedEdges = dilate(edges, DILATE_RADIUS);
-        boolean[][] closedEdges = morphologicalClose(dilatedEdges, CLOSE_RADIUS);
-
-        // 5. Marcar contenido seguro
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (filtered[y][x] < SAFE_CONTENT_LUMINANCE) {
-                    closedEdges[y][x] = true;
-                }
-            }
+        // 4. Contenido seguro (oscuro)
+        for (int i = 0; i < blocked.length; i++) {
+            if (filtered[i] < SAFE_CONTENT_LUMINANCE) blocked[i] = true;
         }
 
-        // 6. Flood fill desde los bordes
-        boolean[][] isBackground = floodFillFromBorders(closedEdges);
+        // 5. Flood fill desde los bordes
+        boolean[] bg = new boolean[w * h];
+        Morphology.spreadFromSeeds(bg, blocked, w, h,
+                strategy == FloodFillStrategy.DFS, true);
 
-        // 7. Expandir fondo (come aura blanca)
-        expandBackground(filtered, isBackground, NEAR_WHITE_LUMINANCE);
+        // 6. Expandir fondo hacia el papel residual
+        Morphology.expandIntoLight(bg, filtered, w, h, NEAR_WHITE_LUMINANCE);
 
-        // 8. Filtrar componentes pequeños
-        int minArea = (int) (width * height * MIN_COMPONENT_AREA_RATIO);
-        removeSmallComponents(isBackground, minArea);
+        // 7. Componentes pequeños y líneas de la plantilla
+        removeSmallComponents(bg, w, h);
+        removeLongLines(bg, w, h);
 
-        // 9. Eliminar líneas largas (template)
-        removeLongLines(isBackground);
-
-        // 10. Aplicar transparencia con alpha suave
-        BufferedImage result = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (isBackground[y][x]) {
-                    result.setRGB(x, y, 0x00000000);
-                } else {
-                    int rgb = frame.getRGB(x, y);
-                    int alpha = computeAlpha(gray[y][x]);
-                    result.setRGB(x, y, (alpha << 24) | (rgb & 0x00FFFFFF));
-                }
-            }
-        }
-
-        return result;
+        // 8. Alpha suave + descontaminación de color
+        return AlphaMatte.compose(balanced, bg, w, h, EDGE_BAND, applyAntialiasing);
     }
 
     // ============================================================
-    // Etapa 1: Filtro de mediana
+    // Etapas
     // ============================================================
 
-    private int[][] medianFilter(int[][] gray, int radius) {
-        int height = gray.length;
-        int width = gray[0].length;
-        int[][] result = new int[height][width];
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                List<Integer> neighbors = new ArrayList<>();
-
-                for (int dy = -radius; dy <= radius; dy++) {
-                    for (int dx = -radius; dx <= radius; dx++) {
-                        int ny = y + dy;
-                        int nx = x + dx;
-                        if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
-                            neighbors.add(gray[ny][nx]);
-                        }
-                    }
-                }
-
-                neighbors.sort(Integer::compareTo);
-                result[y][x] = neighbors.get(neighbors.size() / 2);
+    private boolean[] cannyEdges(int[] gray, int w, int h) {
+        int[][] g2 = new int[h][w];
+        for (int y = 0; y < h; y++) {
+            System.arraycopy(gray, y * w, g2[y], 0, w);
+        }
+        boolean[][] e2 = canny.detect(g2, CANNY_LOW, CANNY_HIGH);
+        boolean[] edges = new boolean[w * h];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                edges[y * w + x] = e2[y][x];
             }
         }
-
-        return result;
+        return edges;
     }
 
-    // ============================================================
-    // Etapa 9: Eliminar líneas largas
-    // ============================================================
+    /** Conserva solo los componentes grandes (los 3 mayores con área mínima). */
+    private void removeSmallComponents(boolean[] bg, int w, int h) {
+        Morphology.Components comps = Morphology.label(bg, w, h);
+        if (comps.count == 0) return;
 
-    /**
-     * Detecta componentes que son "líneas" (aspect ratio alto) y los elimina.
-     * Esto limpia las líneas del template que quedan.
-     */
-    private void removeLongLines(boolean[][] isBackground) {
-        int height = isBackground.length;
-        int width = isBackground[0].length;
+        int minArea = (int) (w * h * MIN_COMPONENT_AREA_RATIO);
 
-        boolean[][] visited = new boolean[height][width];
-        int maxLineArea = (int) (width * height * MAX_LINE_AREA_RATIO);
+        Integer[] order = new Integer[comps.count];
+        for (int i = 0; i < order.length; i++) order[i] = i + 1;
+        java.util.Arrays.sort(order, (a, b) -> Integer.compare(comps.area[b], comps.area[a]));
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (isBackground[y][x] || visited[y][x]) continue;
-
-                Component comp = floodFillComponent(isBackground, visited, x, y);
-
-                // Verificar aspect ratio y área
-                if (comp.area <= maxLineArea && comp.area > 0) {
-                    Rectangle bbox = computeBoundingBox(comp);
-
-                    double aspectH = (double) bbox.width / bbox.height;
-                    double aspectV = (double) bbox.height / bbox.width;
-                    double aspect = Math.max(aspectH, aspectV);
-
-                    // Si el aspect ratio es muy alto → es una línea
-                    if (aspect > MAX_ASPECT_RATIO) {
-                        log.debug("Línea detectada: bbox={}x{}, aspect={}, area={}",
-                                bbox.width, bbox.height, String.format("%.1f", aspect), comp.area);
-
-                        for (int[] p : comp.pixels) {
-                            isBackground[p[1]][p[0]] = true;
-                        }
-                    }
-                }
+        boolean[] keep = new boolean[comps.count + 1];
+        int kept = 0;
+        for (int i = 0; i < Math.min(order.length, MAX_COMPONENTS); i++) {
+            if (comps.area[order[i]] >= minArea) {
+                keep[order[i]] = true;
+                kept++;
             }
+        }
+        log.debug("Conservando {} componentes de {}", kept, comps.count);
+
+        for (int i = 0; i < bg.length; i++) {
+            int l = comps.label[i];
+            if (l != 0 && !keep[l]) bg[i] = true;
         }
     }
 
-    private Rectangle computeBoundingBox(Component comp) {
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+    /** Elimina componentes con forma de línea (restos de las guías de la plantilla). */
+    private void removeLongLines(boolean[] bg, int w, int h) {
+        Morphology.Components comps = Morphology.label(bg, w, h);
+        if (comps.count == 0) return;
 
-        for (int[] p : comp.pixels) {
-            minX = Math.min(minX, p[0]);
-            minY = Math.min(minY, p[1]);
-            maxX = Math.max(maxX, p[0]);
-            maxY = Math.max(maxY, p[1]);
-        }
+        int maxLineArea = (int) (w * h * MAX_LINE_AREA_RATIO);
+        boolean[] kill = new boolean[comps.count + 1];
+        boolean any = false;
 
-        return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
-    }
-
-    // ============================================================
-    // Etapa 8: Filtro de componentes pequeños
-    // ============================================================
-
-    private void removeSmallComponents(boolean[][] isBackground, int minArea) {
-        int height = isBackground.length;
-        int width = isBackground[0].length;
-
-        boolean[][] visited = new boolean[height][width];
-        List<Component> components = new ArrayList<>();
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (isBackground[y][x] || visited[y][x]) continue;
-                components.add(floodFillComponent(isBackground, visited, x, y));
+        for (int id = 1; id <= comps.count; id++) {
+            if (comps.area[id] <= 0 || comps.area[id] > maxLineArea) continue;
+            double bw = comps.bboxWidth(id);
+            double bh = comps.bboxHeight(id);
+            double aspect = Math.max(bw / bh, bh / bw);
+            if (aspect > MAX_ASPECT_RATIO) {
+                kill[id] = true;
+                any = true;
             }
         }
+        if (!any) return;
 
-        components.sort(Comparator.comparingInt((Component c) -> c.area).reversed());
-
-        List<Component> keepers = new ArrayList<>();
-        for (int i = 0; i < Math.min(components.size(), MAX_COMPONENTS); i++) {
-            Component comp = components.get(i);
-            if (comp.area >= minArea) {
-                keepers.add(comp);
-            }
+        for (int i = 0; i < bg.length; i++) {
+            int l = comps.label[i];
+            if (l != 0 && kill[l]) bg[i] = true;
         }
-
-        log.debug("Conservando {} componentes de {}", keepers.size(), components.size());
-
-        for (Component comp : components) {
-            if (!keepers.contains(comp)) {
-                for (int[] p : comp.pixels) {
-                    isBackground[p[1]][p[0]] = true;
-                }
-            }
-        }
-    }
-
-    private Component floodFillComponent(boolean[][] isBackground, boolean[][] visited,
-                                          int startX, int startY) {
-        int height = isBackground.length;
-        int width = isBackground[0].length;
-
-        Component comp = new Component();
-        Deque<int[]> queue = new ArrayDeque<>();
-        queue.add(new int[]{startX, startY});
-        visited[startY][startX] = true;
-
-        while (!queue.isEmpty()) {
-            int[] p = queue.poll();
-            int x = p[0], y = p[1];
-            comp.pixels.add(p);
-            comp.area++;
-
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-
-                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                    if (visited[ny][nx] || isBackground[ny][nx]) continue;
-
-                    visited[ny][nx] = true;
-                    queue.add(new int[]{nx, ny});
-                }
-            }
-        }
-
-        return comp;
-    }
-
-    private static class Component {
-        final List<int[]> pixels = new ArrayList<>();
-        int area = 0;
-    }
-
-    // ============================================================
-    // Etapa 7: Expansión del fondo
-    // ============================================================
-
-    private void expandBackground(int[][] gray, boolean[][] isBackground, int nearWhiteThreshold) {
-        int height = gray.length;
-        int width = gray[0].length;
-
-        Deque<int[]> queue = new ArrayDeque<>();
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (isBackground[y][x]) {
-                    queue.add(new int[]{x, y});
-                }
-            }
-        }
-
-        while (!queue.isEmpty()) {
-            int[] p = queue.poll();
-            int x = p[0], y = p[1];
-
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-
-                    if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
-                    if (isBackground[ny][nx]) continue;
-
-                    if (gray[ny][nx] >= nearWhiteThreshold) {
-                        isBackground[ny][nx] = true;
-                        queue.add(new int[]{nx, ny});
-                    }
-                }
-            }
-        }
-    }
-
-    // ============================================================
-    // Etapa 10: Alpha suave
-    // ============================================================
-
-    /**
-     * Calcula el alpha de un píxel de contenido según su luminancia.
-     * Píxeles oscuros → alpha alto (opacos).
-     * Píxeles grises claros → alpha bajo (semi-transparentes).
-     */
-    private int computeAlpha(int lum) {
-        if (lum <= 200) return 255;  // Oscuro → totalmente opaco
-        if (lum >= 250) return 0;    // Muy claro → transparente
-        // Interpolar entre 200 y 250
-        int alpha = (int) (255.0 * (250 - lum) / 50.0);
-        return Math.max(ANTIALIAS_ALPHA_MIN, Math.min(ANTIALIAS_ALPHA_MAX, alpha));
     }
 
     // ============================================================
     // Utilidades
     // ============================================================
 
-    private int[][] toLuminanceMatrix(BufferedImage frame) {
-        int width = frame.getWidth();
-        int height = frame.getHeight();
-        int[][] gray = new int[height][width];
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                gray[y][x] = luminance(frame.getRGB(x, y));
-            }
+    private static int[] luminance(int[] rgb) {
+        int[] g = new int[rgb.length];
+        for (int i = 0; i < rgb.length; i++) {
+            g[i] = Paper.luminance(rgb[i]);
         }
-        return gray;
+        return g;
     }
 
-    private boolean[][] dilate(boolean[][] mask, int radius) {
-        int height = mask.length;
-        int width = mask[0].length;
-        boolean[][] result = new boolean[height][width];
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (!mask[y][x]) continue;
-                for (int dy = -radius; dy <= radius; dy++) {
-                    for (int dx = -radius; dx <= radius; dx++) {
-                        int ny = y + dy, nx = x + dx;
-                        if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
-                            result[ny][nx] = true;
-                        }
+    /** Mediana 3x3 con bordes replicados (ordenación de 9 valores). */
+    static int[] median3x3(int[] src, int w, int h) {
+        int[] out = new int[src.length];
+        int[] v = new int[9];
+        for (int y = 0; y < h; y++) {
+            int ym = Math.max(0, y - 1) * w;
+            int y0 = y * w;
+            int yp = Math.min(h - 1, y + 1) * w;
+            for (int x = 0; x < w; x++) {
+                int xm = Math.max(0, x - 1);
+                int xp = Math.min(w - 1, x + 1);
+                v[0] = src[ym + xm]; v[1] = src[ym + x]; v[2] = src[ym + xp];
+                v[3] = src[y0 + xm]; v[4] = src[y0 + x]; v[5] = src[y0 + xp];
+                v[6] = src[yp + xm]; v[7] = src[yp + x]; v[8] = src[yp + xp];
+                // ordenación por inserción de 9 elementos
+                for (int i = 1; i < 9; i++) {
+                    int key = v[i];
+                    int j = i - 1;
+                    while (j >= 0 && v[j] > key) {
+                        v[j + 1] = v[j];
+                        j--;
                     }
+                    v[j + 1] = key;
                 }
+                out[y0 + x] = v[4];
             }
         }
-        return result;
-    }
-
-    private boolean[][] erode(boolean[][] mask, int radius) {
-        int height = mask.length;
-        int width = mask[0].length;
-        boolean[][] result = new boolean[height][width];
-
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                if (!mask[y][x]) continue;
-                boolean allSet = true;
-                for (int dy = -radius; dy <= radius && allSet; dy++) {
-                    for (int dx = -radius; dx <= radius; dx++) {
-                        int ny = y + dy, nx = x + dx;
-                        if (ny < 0 || ny >= height || nx < 0 || nx >= width || !mask[ny][nx]) {
-                            allSet = false;
-                            break;
-                        }
-                    }
-                }
-                if (allSet) result[y][x] = true;
-            }
-        }
-        return result;
-    }
-
-    private boolean[][] morphologicalClose(boolean[][] mask, int radius) {
-        return erode(dilate(mask, radius), radius);
-    }
-
-    private boolean[][] floodFillFromBorders(boolean[][] isContent) {
-        int height = isContent.length;
-        int width = isContent[0].length;
-        boolean[][] isBackground = new boolean[height][width];
-
-        Deque<int[]> queue = new ArrayDeque<>();
-
-        for (int x = 0; x < width; x++) {
-            tryAddSeed(isContent, isBackground, queue, x, 0);
-            tryAddSeed(isContent, isBackground, queue, x, height - 1);
-        }
-        for (int y = 0; y < height; y++) {
-            tryAddSeed(isContent, isBackground, queue, 0, y);
-            tryAddSeed(isContent, isBackground, queue, width - 1, y);
-        }
-
-        while (!queue.isEmpty()) {
-            int[] p = queue.poll();
-            int x = p[0], y = p[1];
-
-            tryAddSeed(isContent, isBackground, queue, x + 1, y);
-            tryAddSeed(isContent, isBackground, queue, x - 1, y);
-            tryAddSeed(isContent, isBackground, queue, x, y + 1);
-            tryAddSeed(isContent, isBackground, queue, x, y - 1);
-        }
-
-        return isBackground;
-    }
-
-    private void tryAddSeed(boolean[][] isContent, boolean[][] isBackground,
-                             Deque<int[]> queue, int x, int y) {
-        int width = isContent[0].length;
-        int height = isContent.length;
-
-        if (x < 0 || x >= width || y < 0 || y >= height) return;
-        if (isBackground[y][x] || isContent[y][x]) return;
-
-        isBackground[y][x] = true;
-        queue.add(new int[]{x, y});
-    }
-
-    private int luminance(int rgb) {
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-        return (int) (0.299 * r + 0.587 * g + 0.114 * b);
+        return out;
     }
 }

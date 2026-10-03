@@ -17,27 +17,47 @@ import java.util.function.DoubleConsumer;
 /**
  * Descarga el modelo U2-Net ONNX la primera vez que se necesita.
  *
- * <p>El modelo pesa ~170 MB y se descarga desde GitHub Releases
- * (repositorio oficial de rembg). Una vez descargado, se guarda en
- * {@code ~/kineticforge/models/u2net.onnx} y se reutiliza offline.</p>
+ * <p>Se descarga desde GitHub Releases (repositorio oficial de rembg) y se
+ * guarda en {@code ~/kineticforge/models/}. Después funciona offline.</p>
  *
  * @author KineticForge Team
- * @version 1.0.0
+ * @version 2.0.0
  * @since 2026
  */
 public class ModelDownloader {
 
     private static final Logger log = LoggerFactory.getLogger(ModelDownloader.class);
 
-    /** URL del modelo en GitHub Releases. */
-    private static final String MODEL_URL =
-            "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx";
+    /** Variantes disponibles del modelo. */
+    public enum Variant {
+        /** U2-Net "portable": ~5 MB, rápido. */
+        LIGHT("u2netp.onnx", "Ligero (5 MB, rápido)",
+                "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx",
+                5_000_000L, 1_000_000L),
+        /** U2-Net completo: ~176 MB, bordes más precisos. */
+        FULL("u2net.onnx", "Preciso (176 MB)",
+                "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+                176_000_000L, 100_000_000L);
 
-    /** Nombre del archivo del modelo. */
-    private static final String MODEL_FILENAME = "u2netp.onnx";
+        private final String fileName;
+        private final String label;
+        private final String url;
+        private final long expectedSize;
+        private final long minValidSize;
 
-    /** Tamaño esperado del modelo (~170 MB). */
-    private static final long EXPECTED_SIZE = 5_000_000L;
+        Variant(String fileName, String label, String url, long expectedSize, long minValidSize) {
+            this.fileName = fileName;
+            this.label = label;
+            this.url = url;
+            this.expectedSize = expectedSize;
+            this.minValidSize = minValidSize;
+        }
+
+        public String getLabel() { return label; }
+
+        @Override
+        public String toString() { return label; }
+    }
 
     /**
      * Asegura que el modelo esté descargado. Si no existe, lo descarga.
@@ -46,50 +66,54 @@ public class ModelDownloader {
      * @return ruta al archivo del modelo
      * @throws IOException si falla la descarga
      */
-    public static Path ensureModel(DoubleConsumer progressCallback) throws IOException {
-        Path modelPath = getModelPath();
+    public static Path ensureModel(Variant variant, DoubleConsumer progressCallback) throws IOException {
+        Path modelPath = getModelPath(variant);
 
-        if (Files.exists(modelPath) && Files.size(modelPath) > 1_000_000) {
-            log.info("Modelo U2-Net ya descargado: {} ({} MB)",
+        if (isModelDownloaded(variant)) {
+            log.info("Modelo ya descargado: {} ({} MB)",
                     modelPath, Files.size(modelPath) / (1024 * 1024));
             return modelPath;
         }
 
-        log.info("Descargando modelo U2-Net (~170 MB) desde: {}", MODEL_URL);
-        download(MODEL_URL, modelPath, progressCallback);
+        log.info("Descargando modelo {} desde: {}", variant.fileName, variant.url);
+        download(variant.url, modelPath, variant.expectedSize, progressCallback);
         log.info("Modelo descargado: {}", modelPath);
 
         return modelPath;
     }
 
-    /**
-     * Asegura que el modelo esté descargado (sin callback de progreso).
-     */
+    public static Path ensureModel(DoubleConsumer progressCallback) throws IOException {
+        return ensureModel(Variant.LIGHT, progressCallback);
+    }
+
     public static Path ensureModel() throws IOException {
-        return ensureModel(null);
+        return ensureModel(Variant.LIGHT, null);
     }
 
-    /**
-     * @return ruta donde se guarda el modelo.
-     */
-    public static Path getModelPath() {
+    public static Path getModelPath(Variant variant) {
         return Path.of(System.getProperty("user.home"),
-                "kineticforge", "models", MODEL_FILENAME);
+                "kineticforge", "models", variant.fileName);
     }
 
-    /**
-     * @return true si el modelo ya está descargado.
-     */
+    public static Path getModelPath() {
+        return getModelPath(Variant.LIGHT);
+    }
+
+    public static boolean isModelDownloaded(Variant variant) {
+        Path path = getModelPath(variant);
+        return Files.exists(path) && path.toFile().length() >= variant.minValidSize;
+    }
+
     public static boolean isModelDownloaded() {
-        Path path = getModelPath();
-        return Files.exists(path) && path.toFile().length() > 1_000_000;
+        return isModelDownloaded(Variant.LIGHT);
     }
 
     // ============================================================
     // Descarga
     // ============================================================
 
-    private static void download(String url, Path destination, DoubleConsumer progress)
+    private static void download(String url, Path destination, long expectedSize,
+                                 DoubleConsumer progress)
             throws IOException {
 
         Path parent = destination.getParent();
@@ -124,7 +148,7 @@ public class ModelDownloader {
 
             long totalSize = response.headers()
                     .firstValueAsLong("Content-Length")
-                    .orElse(EXPECTED_SIZE);
+                    .orElse(expectedSize);
 
             try (InputStream in = response.body();
                  var out = Files.newOutputStream(tempFile)) {

@@ -17,15 +17,31 @@ import java.util.Objects;
  * las líneas del template en el frame resultante.</p>
  *
  * @author KineticForge Team
- * @version 3.0.0
+ * @version 4.0.0
  * @since 2026
  */
 public class FrameExtractor {
 
     private static final Logger log = LoggerFactory.getLogger(FrameExtractor.class);
 
-    /** Margen interno (en píxeles) para evitar las líneas del template. */
-    private static final int INNER_MARGIN_PX = 8;
+    /** Margen interno por defecto (en píxeles) para evitar las líneas del template. */
+    public static final int DEFAULT_INNER_MARGIN_PX = 8;
+
+    private final int innerMargin;
+
+    public FrameExtractor() {
+        this(DEFAULT_INNER_MARGIN_PX);
+    }
+
+    /**
+     * @param innerMargin margen interno en píxeles (0 = recorte exacto de la celda)
+     */
+    public FrameExtractor(int innerMargin) {
+        if (innerMargin < 0) {
+            throw new IllegalArgumentException("innerMargin no puede ser negativo");
+        }
+        this.innerMargin = innerMargin;
+    }
 
     /**
      * Extrae todos los frames de la imagen según los rectángulos dados.
@@ -35,7 +51,7 @@ public class FrameExtractor {
         Objects.requireNonNull(cells, "cells no puede ser nulo");
 
         log.info("Extrayendo {} frames de imagen de {}x{} (margen interno: {} px)",
-                cells.size(), image.getWidth(), image.getHeight(), INNER_MARGIN_PX);
+                cells.size(), image.getWidth(), image.getHeight(), innerMargin);
 
         List<BufferedImage> frames = new ArrayList<>(cells.size());
 
@@ -49,10 +65,10 @@ public class FrameExtractor {
 
     private BufferedImage extractSingleFrame(BufferedImage image, Rectangle cell, int index) {
         // Recortar con margen interno
-        int x = cell.x + INNER_MARGIN_PX;
-        int y = cell.y + INNER_MARGIN_PX;
-        int w = cell.width - 2 * INNER_MARGIN_PX;
-        int h = cell.height - 2 * INNER_MARGIN_PX;
+        int x = cell.x + innerMargin;
+        int y = cell.y + innerMargin;
+        int w = cell.width - 2 * innerMargin;
+        int h = cell.height - 2 * innerMargin;
 
         // Validar que quede espacio
         if (w <= 0 || h <= 0) {
@@ -72,15 +88,12 @@ public class FrameExtractor {
                     "Celda %d fuera de límites: %s", index, cell));
         }
 
-        BufferedImage frame = new BufferedImage(w, h, image.getType());
-
-        for (int fy = 0; fy < h; fy++) {
-            for (int fx = 0; fx < w; fx++) {
-                int rgb = image.getRGB(x + fx, y + fy);
-                frame.setRGB(fx, fy, rgb);
-            }
-        }
-
+        // getType() puede ser 0 (imágenes TIFF/16 bits): se usa siempre un tipo estándar
+        int type = image.getColorModel().hasAlpha()
+                ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+        BufferedImage frame = new BufferedImage(w, h, type);
+        int[] pixels = image.getRGB(x, y, w, h, null, 0, w);
+        frame.setRGB(0, 0, w, h, pixels, 0, w);
         return frame;
     }
 }

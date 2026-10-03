@@ -1,6 +1,7 @@
 package io.kineticforge.ui.controller.wizard;
 
 import io.kineticforge.ui.model.WizardState;
+import io.kineticforge.ui.util.Dialogs;
 import io.kineticforge.ui.model.WizardStep;
 import io.kineticforge.ui.util.ThemeManager;
 import io.kineticforge.ui.util.TemplatesDialog;
@@ -106,9 +107,29 @@ public class WizardController {
 
     @FXML
     private void onNext() {
-        if (currentStep != WizardStep.EXPORT) {
-            showStep(currentStep.next());
+        if (currentStep == WizardStep.EXPORT) {
+            return;
         }
+        String problem = validateBeforeLeaving(currentStep);
+        if (problem != null) {
+            Dialogs.warn("Falta un paso", problem);
+            return;
+        }
+        showStep(currentStep.next());
+    }
+
+    /** @return mensaje si no se puede avanzar desde el paso dado; null si se puede. */
+    private String validateBeforeLeaving(WizardStep step) {
+        return switch (step) {
+            case LOAD_IMAGE -> state.getSheets().isEmpty()
+                    ? "Cargá al menos una hoja o imagen." : null;
+            case DETECT_GRID -> state.allSheetsHaveGrid()
+                    ? null : "Todas las hojas necesitan una grilla. Presioná «Aplicar» en cada una.";
+            case PROCESS_FRAMES -> state.getProcessedFrames() == null
+                    || state.getProcessedFrames().isEmpty()
+                    ? "Presioná «Procesar frames» antes de continuar." : null;
+            default -> null;
+        };
     }
 
     private void goNext() {

@@ -99,6 +99,7 @@ public class FrameAligner {
     private Rectangle computeContentBounds(BufferedImage frame) {
         int width = frame.getWidth();
         int height = frame.getHeight();
+        int[] px = frame.getRGB(0, 0, width, height, null, 0, width);
 
         int minX = width;
         int minY = height;
@@ -106,9 +107,9 @@ public class FrameAligner {
         int maxY = -1;
 
         for (int y = 0; y < height; y++) {
+            int base = y * width;
             for (int x = 0; x < width; x++) {
-                int alpha = (frame.getRGB(x, y) >> 24) & 0xFF;
-                if (alpha > 10) {  // ignorar píxeles casi transparentes
+                if (((px[base + x] >>> 24) & 0xFF) > 10) {  // ignorar píxeles casi transparentes
                     if (x < minX) minX = x;
                     if (y < minY) minY = y;
                     if (x > maxX) maxX = x;
@@ -143,18 +144,10 @@ public class FrameAligner {
         int offsetX = (canvasWidth - bbox.width) / 2;
         int offsetY = (canvasHeight - bbox.height) / 2;
 
-        // Copiar el contenido de la región del bbox al canvas centrado
-        for (int y = 0; y < bbox.height; y++) {
-            for (int x = 0; x < bbox.width; x++) {
-                int srcX = bbox.x + x;
-                int srcY = bbox.y + y;
-                int rgb = original.getRGB(srcX, srcY);
-
-                int dstX = offsetX + x;
-                int dstY = offsetY + y;
-                aligned.setRGB(dstX, dstY, rgb);
-            }
-        }
+        // Copiar el contenido de la región del bbox al canvas centrado (en bloque)
+        int[] region = original.getRGB(bbox.x, bbox.y, bbox.width, bbox.height,
+            null, 0, bbox.width);
+        aligned.setRGB(offsetX, offsetY, bbox.width, bbox.height, region, 0, bbox.width);
 
         return aligned;
     }
